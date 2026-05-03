@@ -5,25 +5,26 @@ import pandas as pd
 import numpy as np
 
 
-# ── Métricas del radar (stats crudas, mismas que la tabla) ──────────────────
+# ── Métricas del radar (Statcast percentile ranks 0-100, mayor = mejor) ──────
 
 RADAR_METRICS_BAT = {
-    "OBP":  {"higher_is_better": True,  "scale": (0.200, 0.500)},
-    "SLG":  {"higher_is_better": True,  "scale": (0.200, 0.700)},
-    "ISO":  {"higher_is_better": True,  "scale": (0.000, 0.350)},
-    "OPS":  {"higher_is_better": True,  "scale": (0.500, 1.100)},
-    "BB%":  {"higher_is_better": True,  "scale": (0.030, 0.200)},
-    "K%":   {"higher_is_better": False, "scale": (0.050, 0.400)},
-    "AVG":  {"higher_is_better": True,  "scale": (0.180, 0.360)},
+    "P_xwOBA":   {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
+    "P_Barrel":  {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
+    "P_EV":      {"higher_is_better": True, "scale": (0, 100), "label": "Exit Velo"},
+    "P_HardHit": {"higher_is_better": True, "scale": (0, 100), "label": "Hard Hit%"},
+    "P_Whiff":   {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
+    "P_K":       {"higher_is_better": True, "scale": (0, 100), "label": "K%"},
+    "P_BB":      {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
 }
 
 RADAR_METRICS_PIT = {
-    "ERA":   {"higher_is_better": False, "scale": (1.50, 7.00)},
-    "WHIP":  {"higher_is_better": False, "scale": (0.80, 1.80)},
-    "K/9":   {"higher_is_better": True,  "scale": (3.00, 16.00)},
-    "BB/9":  {"higher_is_better": False, "scale": (1.00, 6.00)},
-    "HR/9":  {"higher_is_better": False, "scale": (0.00, 2.50)},
-    "BABIP": {"higher_is_better": False, "scale": (0.200, 0.380)},
+    "P_xERA":   {"higher_is_better": True, "scale": (0, 100), "label": "xERA"},
+    "P_xwOBA":  {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
+    "P_FBVelo": {"higher_is_better": True, "scale": (0, 100), "label": "FB Velo"},
+    "P_K":      {"higher_is_better": True, "scale": (0, 100), "label": "K%"},
+    "P_BB":     {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
+    "P_Whiff":  {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
+    "P_Barrel": {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
 }
 
 # Counting stats que aparecen en la tabla pero no en el radar
@@ -142,19 +143,19 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
 
     fig.update_layout(
         polar=dict(
-            bgcolor="rgba(255,255,255,0.06)",
+            bgcolor="rgba(0,0,0,0.03)",
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
                 tickvals=[25, 50, 75, 100],
-                tickfont=dict(color="rgba(255,255,255,0.55)", size=9),
-                gridcolor="rgba(255,255,255,0.18)",
-                linecolor="rgba(255,255,255,0.18)",
+                tickfont=dict(color="rgba(60,60,60,0.70)", size=9),
+                gridcolor="rgba(0,0,0,0.15)",
+                linecolor="rgba(0,0,0,0.15)",
             ),
             angularaxis=dict(
-                tickfont=dict(color="white", size=12),
-                gridcolor="rgba(255,255,255,0.18)",
-                linecolor="rgba(255,255,255,0.25)",
+                tickfont=dict(color="#222222", size=12),
+                gridcolor="rgba(0,0,0,0.12)",
+                linecolor="rgba(0,0,0,0.20)",
             ),
         ),
         showlegend=True,
@@ -164,14 +165,14 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
             y=-0.18,
             xanchor="center",
             x=0.5,
-            font=dict(color="white", size=13),
-            bgcolor="rgba(0,0,0,0.40)",
-            bordercolor="rgba(255,255,255,0.25)",
+            font=dict(color="#222222", size=13),
+            bgcolor="rgba(255,255,255,0.85)",
+            bordercolor="rgba(0,0,0,0.20)",
             borderwidth=1,
         ),
         height=530,
-        paper_bgcolor="#111827",
-        font=dict(color="white"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#222222"),
         margin=dict(t=20, b=80, l=40, r=40),
     )
     return fig
