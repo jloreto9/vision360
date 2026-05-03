@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import streamlit as st
 import pybaseball as pb
 import pandas as pd
@@ -9,6 +10,7 @@ logger = logging.getLogger(__name__)
 pb.cache.enable()
 
 SEASON = 2026
+DATA_DIR = Path(__file__).parent / "data"
 
 # ── Columnas por dimensión ──────────────────────────────────────────────────
 
@@ -29,6 +31,11 @@ FIELD_COLS = ["Name", "Team", "Pos", "Inn", "UZR/150", "DRS", "OAA"]
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
 
+def _load_csv(name: str) -> pd.DataFrame | None:
+    path = DATA_DIR / f"{name}.csv"
+    return pd.read_csv(path) if path.exists() else None
+
+
 def _safe_fg(func, *args, **kwargs):
     try:
         df = func(*args, **kwargs)
@@ -40,31 +47,37 @@ def _safe_fg(func, *args, **kwargs):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_batting():
-    df = _safe_fg(pb.batting_stats, SEASON, SEASON, qual=50)
+    csv = _load_csv("batting")
+    df = csv if csv is not None else _safe_fg(pb.batting_stats, SEASON, SEASON, qual=50)
     cols = [c for c in BAT_COLS if c in df.columns]
     return df[cols].copy()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_pitching():
-    df = _safe_fg(pb.pitching_stats, SEASON, SEASON, qual=20)
+    csv = _load_csv("pitching")
+    df = csv if csv is not None else _safe_fg(pb.pitching_stats, SEASON, SEASON, qual=20)
     cols = [c for c in PIT_COLS if c in df.columns]
     return df[cols].copy()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_fielding():
-    df = _safe_fg(pb.fielding_stats, SEASON, SEASON, qual=50)
+    csv = _load_csv("fielding")
+    df = csv if csv is not None else _safe_fg(pb.fielding_stats, SEASON, SEASON, qual=50)
     cols = [c for c in FIELD_COLS if c in df.columns]
     return df[cols].copy()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_sprint():
-    try:
-        df = pb.statcast_sprint_speed(SEASON)
+    df = _load_csv("sprint")
+    if df is not None:
         return df
-    except Exception:
+    try:
+        return pb.statcast_sprint_speed(SEASON)
+    except Exception as e:
+        logger.error("statcast_sprint_speed fallo: %s", e)
         return pd.DataFrame()
 
 
