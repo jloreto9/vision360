@@ -27,32 +27,37 @@ PIT_COLS = [
 
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
-# Mapas de columnas de valores reales Statcast — varios nombres posibles, gana el primero que exista
+# expected_statistics endpoint: solo stats "x" (xwOBA, xERA)
 _BAT_EXP_RENAME = [
-    ("est_woba",          "V_xwOBA"),
-    ("xwoba",             "V_xwOBA"),
-    ("brl_percent",       "V_Barrel"),
-    ("barrel",            "V_Barrel"),
-    ("barrel_batted_rate","V_Barrel"),
-    ("exit_velocity",     "V_EV"),
-    ("launch_speed",      "V_EV"),
-    ("hard_hit_percent",  "V_HardHit"),
-    ("whiff_percent",     "V_Whiff"),
-    ("k_percent",         "V_K"),
-    ("bb_percent",        "V_BB"),
+    ("est_woba", "V_xwOBA"),
+    ("xwoba",    "V_xwOBA"),
 ]
 _PIT_EXP_RENAME = [
-    ("est_era",           "V_xERA"),
-    ("xera",              "V_xERA"),
-    ("est_woba",          "V_xwOBA"),
-    ("xwoba",             "V_xwOBA"),
-    ("k_percent",         "V_K"),
-    ("p_k_percent",       "V_K"),
-    ("bb_percent",        "V_BB"),
-    ("p_bb_percent",      "V_BB"),
-    ("whiff_percent",     "V_Whiff"),
-    ("brl_percent",       "V_Barrel"),
-    ("barrel",            "V_Barrel"),
+    ("est_era",  "V_xERA"),
+    ("xera",     "V_xERA"),
+    ("est_woba", "V_xwOBA"),
+    ("xwoba",    "V_xwOBA"),
+]
+
+# exitvelo_barrels endpoint: EV, Barrel%, Hard Hit%, Whiff%
+_BAT_EV_RENAME = [
+    ("avg_hit_speed",    "V_EV"),
+    ("exit_velocity",    "V_EV"),
+    ("brl_percent",      "V_Barrel"),
+    ("brl_pa",           "V_Barrel"),
+    ("barrel",           "V_Barrel"),
+    ("ev95percent",      "V_HardHit"),
+    ("hard_hit_percent", "V_HardHit"),
+    ("whiff_percent",    "V_Whiff"),
+]
+_PIT_EV_RENAME = [
+    ("avg_hit_speed",    "V_EV"),
+    ("exit_velocity",    "V_EV"),
+    ("brl_percent",      "V_Barrel"),
+    ("brl_pa",           "V_Barrel"),
+    ("ev95percent",      "V_HardHit"),
+    ("hard_hit_percent", "V_HardHit"),
+    ("whiff_percent",    "V_Whiff"),
 ]
 
 
@@ -180,6 +185,30 @@ def load_pitching_expected():
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def load_batting_exitvelo():
+    try:
+        return pb.statcast_batter_exitvelo_barrels(SEASON)
+    except AttributeError:
+        logger.warning("statcast_batter_exitvelo_barrels no disponible en esta version de pybaseball")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error("statcast_batter_exitvelo_barrels: %s", e)
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_pitching_exitvelo():
+    try:
+        return pb.statcast_pitcher_exitvelo_barrels(SEASON)
+    except AttributeError:
+        logger.warning("statcast_pitcher_exitvelo_barrels no disponible en esta version de pybaseball")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error("statcast_pitcher_exitvelo_barrels: %s", e)
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_fielding():
     return pd.DataFrame()
 
@@ -244,7 +273,7 @@ def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: list) -> 
 
     seen: set = set()
     for src_col, v_key in rename_map:
-        if v_key in seen:
+        if v_key in seen or v_key in data_dict:
             continue
         if src_col in matched.index and not pd.isna(matched[src_col]):
             data_dict[v_key] = matched[src_col]
@@ -252,7 +281,8 @@ def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: list) -> 
 
 
 def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
-                    bat_exp_df=None, pit_exp_df=None) -> dict:
+                    bat_exp_df=None, pit_exp_df=None,
+                    bat_ev_df=None, pit_ev_df=None) -> dict:
     role = detect_role(name, bat_df, pit_df)
     result = {"name": name, "role": role}
 
@@ -261,12 +291,14 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
         result["batting"] = row.iloc[0].to_dict() if not row.empty else {}
         if result["batting"]:
             _merge_expected(result["batting"], bat_exp_df, _BAT_EXP_RENAME)
+            _merge_expected(result["batting"], bat_ev_df,  _BAT_EV_RENAME)
 
     if role in ("pitcher", "two-way"):
         row = pit_df[pit_df["Name"] == name]
         result["pitching"] = row.iloc[0].to_dict() if not row.empty else {}
         if result["pitching"]:
             _merge_expected(result["pitching"], pit_exp_df, _PIT_EXP_RENAME)
+            _merge_expected(result["pitching"], pit_ev_df,  _PIT_EV_RENAME)
 
     result["fielding"] = []
 

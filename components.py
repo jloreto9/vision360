@@ -31,23 +31,43 @@ RADAR_METRICS_PIT = {
 _EXTRA_BAT = ["G", "PA", "HR", "R", "RBI", "SB"]
 _EXTRA_PIT = ["G", "GS", "IP", "W", "L", "SV"]
 
-# Valores reales Statcast — se muestran en la tabla, no en el radar
+# Stats tradicionales de rate (batting)
+_TRAD_BAT = {
+    "AVG":   {"label": "AVG",   "higher_is_better": True},
+    "OBP":   {"label": "OBP",   "higher_is_better": True},
+    "SLG":   {"label": "SLG",   "higher_is_better": True},
+    "OPS":   {"label": "OPS",   "higher_is_better": True},
+    "ISO":   {"label": "ISO",   "higher_is_better": True},
+    "BABIP": {"label": "BABIP", "higher_is_better": True},
+    "BB%":   {"label": "BB%",   "higher_is_better": True},
+    "K%":    {"label": "K%",    "higher_is_better": False},
+}
+
+# Stats tradicionales de rate (pitching)
+_TRAD_PIT = {
+    "ERA":  {"label": "ERA",  "higher_is_better": False},
+    "WHIP": {"label": "WHIP", "higher_is_better": False},
+    "K/9":  {"label": "K/9",  "higher_is_better": True},
+    "BB/9": {"label": "BB/9", "higher_is_better": False},
+    "HR/9": {"label": "HR/9", "higher_is_better": False},
+    "BABIP":{"label": "BABIP","higher_is_better": False},
+}
+
+# Valores reales Statcast (calidad de contacto) — sin percentiles
 _STATCAST_BAT = {
     "V_xwOBA":   {"label": "xwOBA",     "higher_is_better": True},
-    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": True},
     "V_EV":      {"label": "Exit Velo", "higher_is_better": True},
+    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": True},
     "V_HardHit": {"label": "Hard Hit%", "higher_is_better": True},
     "V_Whiff":   {"label": "Whiff%",    "higher_is_better": False},
-    "V_K":       {"label": "K%",        "higher_is_better": False},
-    "V_BB":      {"label": "BB%",       "higher_is_better": True},
 }
 _STATCAST_PIT = {
-    "V_xERA":    {"label": "xERA",      "higher_is_better": False},
-    "V_xwOBA":   {"label": "xwOBA",     "higher_is_better": False},
-    "V_K":       {"label": "K%",        "higher_is_better": True},
-    "V_BB":      {"label": "BB%",       "higher_is_better": False},
-    "V_Whiff":   {"label": "Whiff%",    "higher_is_better": True},
-    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": False},
+    "V_xERA":    {"label": "xERA",        "higher_is_better": False},
+    "V_xwOBA":   {"label": "xwOBA (perm)","higher_is_better": False},
+    "V_EV":      {"label": "EV (perm)",   "higher_is_better": False},
+    "V_Barrel":  {"label": "Barrel% (perm)","higher_is_better": False},
+    "V_HardHit": {"label": "Hard Hit% (perm)","higher_is_better": False},
+    "V_Whiff":   {"label": "Whiff%",      "higher_is_better": True},
 }
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
@@ -190,23 +210,26 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
 def build_comparison_table(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str) -> pd.DataFrame:
     data_key = "batting" if role == "batter" else "pitching"
-    metrics_cfg = RADAR_METRICS_BAT if role == "batter" else RADAR_METRICS_PIT
-
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
-    extra = _EXTRA_BAT if role == "batter" else _EXTRA_PIT
 
     rows = []
-    for k, cfg in metrics_cfg.items():
+
+    # Sección 1: stats de rate tradicionales
+    trad = _TRAD_BAT if role == "batter" else _TRAD_PIT
+    for k, cfg in trad.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
-        rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        rows.append({"Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
+    # Sección 2: stats de volumen / conteo
+    extra = _EXTRA_BAT if role == "batter" else _EXTRA_PIT
     for k in extra:
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, True, name1, name2)
         rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
+    # Sección 3: Statcast (valores reales, sin percentiles)
     statcast = _STATCAST_BAT if role == "batter" else _STATCAST_PIT
     for k, cfg in statcast.items():
         v1, v2 = d1.get(k), d2.get(k)

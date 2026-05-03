@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 from data_loader import (
-    load_batting, load_pitching, load_fielding,
-    load_sprint, load_batting_expected, load_pitching_expected,
+    load_batting, load_pitching, load_fielding, load_sprint,
+    load_batting_expected, load_pitching_expected,
+    load_batting_exitvelo, load_pitching_exitvelo,
     get_player_data, detect_role, SEASON
 )
 from components import build_radar, build_comparison_table, build_comparison_image, build_sprint_row
@@ -31,6 +32,8 @@ with st.spinner("Cargando datos Baseball Reference / Statcast..."):
     sprint_df  = load_sprint()
     bat_exp_df = load_batting_expected()
     pit_exp_df = load_pitching_expected()
+    bat_ev_df  = load_batting_exitvelo()
+    pit_ev_df  = load_pitching_exitvelo()
 
 all_batters  = sorted(bat_df["Name"].dropna().unique().tolist()) if not bat_df.empty else []
 all_pitchers = sorted(pit_df["Name"].dropna().unique().tolist()) if not pit_df.empty else []
@@ -67,8 +70,8 @@ if p1 == p2:
     st.stop()
 
 # ── Obtener datos ─────────────────────────────────────────────────────────────
-d1 = get_player_data(p1, bat_df, pit_df, field_df, sprint_df, bat_exp_df, pit_exp_df)
-d2 = get_player_data(p2, bat_df, pit_df, field_df, sprint_df, bat_exp_df, pit_exp_df)
+d1 = get_player_data(p1, bat_df, pit_df, field_df, sprint_df, bat_exp_df, pit_exp_df, bat_ev_df, pit_ev_df)
+d2 = get_player_data(p2, bat_df, pit_df, field_df, sprint_df, bat_exp_df, pit_exp_df, bat_ev_df, pit_ev_df)
 
 role1 = d1["role"]
 role2 = d2["role"]
