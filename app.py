@@ -33,6 +33,15 @@ all_batters  = sorted(bat_df["Name"].dropna().unique().tolist()) if not bat_df.e
 all_pitchers = sorted(pit_df["Name"].dropna().unique().tolist()) if not pit_df.empty else []
 all_players  = sorted(set(all_batters + all_pitchers))
 
+if not all_players:
+    st.error(
+        "No se pudieron cargar jugadores de FanGraphs. "
+        "Posibles causas: FanGraphs no es accesible desde este servidor, "
+        "o aun no hay suficientes PA/IP acumulados en la temporada. "
+        "Revisa los logs de la app (Manage app → Logs) para el detalle del error."
+    )
+    st.stop()
+
 # ── Header ───────────────────────────────────────────────────────────────────
 st.title("⚾ Vision 360 — Player Comparison")
 st.caption(f"Temporada MLB {SEASON} · Datos: FanGraphs + Baseball Savant")

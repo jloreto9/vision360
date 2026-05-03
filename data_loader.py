@@ -1,11 +1,14 @@
+import logging
 import streamlit as st
 import pybaseball as pb
 import pandas as pd
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 pb.cache.enable()
 
-SEASON = 2025
+SEASON = 2026
 
 # ── Columnas por dimensión ──────────────────────────────────────────────────
 
@@ -31,6 +34,7 @@ def _safe_fg(func, *args, **kwargs):
         df = func(*args, **kwargs)
         return df
     except Exception as e:
+        logger.error("%s(%s %s) falló: %s", func.__name__, args, kwargs, e)
         return pd.DataFrame()
 
 
