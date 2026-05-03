@@ -5,26 +5,30 @@ import pandas as pd
 import numpy as np
 
 
-# Statcast percentile ranks: escala 0-100, mayor = mejor en todos los casos
+# ── Métricas del radar (stats crudas, mismas que la tabla) ──────────────────
+
 RADAR_METRICS_BAT = {
-    "P_xwOBA":   {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
-    "P_Barrel":  {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
-    "P_EV":      {"higher_is_better": True, "scale": (0, 100), "label": "Exit Velo"},
-    "P_HardHit": {"higher_is_better": True, "scale": (0, 100), "label": "Hard Hit%"},
-    "P_Whiff":   {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
-    "P_K":       {"higher_is_better": True, "scale": (0, 100), "label": "K% (bat)"},
-    "P_BB":      {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
+    "OBP":  {"higher_is_better": True,  "scale": (0.200, 0.500)},
+    "SLG":  {"higher_is_better": True,  "scale": (0.200, 0.700)},
+    "ISO":  {"higher_is_better": True,  "scale": (0.000, 0.350)},
+    "OPS":  {"higher_is_better": True,  "scale": (0.500, 1.100)},
+    "BB%":  {"higher_is_better": True,  "scale": (0.030, 0.200)},
+    "K%":   {"higher_is_better": False, "scale": (0.050, 0.400)},
+    "AVG":  {"higher_is_better": True,  "scale": (0.180, 0.360)},
 }
 
 RADAR_METRICS_PIT = {
-    "P_xERA":   {"higher_is_better": True, "scale": (0, 100), "label": "xERA"},
-    "P_xwOBA":  {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA vs"},
-    "P_FBVelo": {"higher_is_better": True, "scale": (0, 100), "label": "FB Velo"},
-    "P_K":      {"higher_is_better": True, "scale": (0, 100), "label": "K%"},
-    "P_BB":     {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
-    "P_Whiff":  {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
-    "P_Barrel": {"higher_is_better": True, "scale": (0, 100), "label": "Barrel% vs"},
+    "ERA":   {"higher_is_better": False, "scale": (1.50, 7.00)},
+    "WHIP":  {"higher_is_better": False, "scale": (0.80, 1.80)},
+    "K/9":   {"higher_is_better": True,  "scale": (3.00, 16.00)},
+    "BB/9":  {"higher_is_better": False, "scale": (1.00, 6.00)},
+    "HR/9":  {"higher_is_better": False, "scale": (0.00, 2.50)},
+    "BABIP": {"higher_is_better": False, "scale": (0.200, 0.380)},
 }
+
+# Counting stats que aparecen en la tabla pero no en el radar
+_EXTRA_BAT = ["G", "PA", "HR", "R", "RBI", "SB"]
+_EXTRA_PIT = ["G", "GS", "IP", "W", "L", "SV"]
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
 
@@ -38,8 +42,6 @@ def _fmt(stat: str, value) -> str:
     try:
         if value is None or (isinstance(value, float) and np.isnan(value)):
             return "N/D"
-        if stat.startswith("P_"):
-            return str(int(round(float(value))))
         if stat in _INT_STATS:
             return str(int(round(float(value))))
         if stat in _RATE3_STATS:
@@ -89,7 +91,7 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
-    labels = [cfg.get("label", m) for m, cfg in metrics.items()]
+    labels = list(metrics.keys())
     vals1, vals2 = [], []
 
     for m, cfg in metrics.items():
@@ -102,36 +104,34 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     vals1  += [vals1[0]]
     vals2  += [vals2[0]]
 
-    colors = {"p1": "#E63946", "p2": "#457B9D"}
+    RED  = "#E63946"
+    BLUE = "#457B9D"
     fig = go.Figure()
-    for vals, name, color in [
-        (vals1, name1, colors["p1"]),
-        (vals2, name2, colors["p2"]),
-    ]:
+    for vals, name, color in [(vals1, name1, RED), (vals2, name2, BLUE)]:
         fig.add_trace(go.Scatterpolar(
             r=vals,
             theta=labels,
             fill="toself",
             name=name,
             line=dict(color=color, width=2),
-            fillcolor=_hex_to_rgba(color, 0.20),
+            fillcolor=_hex_to_rgba(color, 0.25),
         ))
 
     fig.update_layout(
         polar=dict(
-            bgcolor="rgba(255,255,255,0.04)",
+            bgcolor="rgba(255,255,255,0.06)",
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
                 tickvals=[25, 50, 75, 100],
-                tickfont=dict(color="rgba(255,255,255,0.5)", size=9),
-                gridcolor="rgba(255,255,255,0.15)",
-                linecolor="rgba(255,255,255,0.15)",
+                tickfont=dict(color="rgba(255,255,255,0.55)", size=9),
+                gridcolor="rgba(255,255,255,0.18)",
+                linecolor="rgba(255,255,255,0.18)",
             ),
             angularaxis=dict(
-                tickfont=dict(color="white", size=11),
-                gridcolor="rgba(255,255,255,0.15)",
-                linecolor="rgba(255,255,255,0.2)",
+                tickfont=dict(color="white", size=12),
+                gridcolor="rgba(255,255,255,0.18)",
+                linecolor="rgba(255,255,255,0.25)",
             ),
         ),
         showlegend=True,
@@ -142,14 +142,14 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
             xanchor="center",
             x=0.5,
             font=dict(color="white", size=13),
-            bgcolor="rgba(0,0,0,0.35)",
-            bordercolor="rgba(255,255,255,0.2)",
+            bgcolor="rgba(0,0,0,0.40)",
+            bordercolor="rgba(255,255,255,0.25)",
             borderwidth=1,
         ),
-        height=520,
-        paper_bgcolor="rgba(0,0,0,0)",
+        height=530,
+        paper_bgcolor="#111827",
         font=dict(color="white"),
-        margin=dict(t=20, b=80),
+        margin=dict(t=20, b=80, l=40, r=40),
     )
     return fig
 
@@ -161,21 +161,17 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
-
-    extra_bat = ["G", "PA", "HR", "R", "RBI", "SB", "AVG", "OBP", "SLG", "OPS", "BB%", "K%", "ISO"]
-    extra_pit = ["G", "GS", "IP", "W", "L", "SV", "ERA", "WHIP", "K/9", "BB/9", "HR/9", "BABIP"]
-    extra = extra_bat if role == "batter" else extra_pit
+    extra = _EXTRA_BAT if role == "batter" else _EXTRA_PIT
 
     rows = []
     for k, cfg in metrics_cfg.items():
-        label = cfg.get("label", k)
         v1, v2 = d1.get(k), d2.get(k)
-        winner = _winner(v1, v2, cfg.get("higher_is_better", True), name1, name2)
-        rows.append({"Stat": label, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
+        rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     for k in extra:
         v1, v2 = d1.get(k), d2.get(k)
-        winner = _winner(v1, v2, k not in {"K%"}, name1, name2)
+        winner = _winner(v1, v2, True, name1, name2)
         rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     return pd.DataFrame(rows)
@@ -184,7 +180,7 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 def build_comparison_image(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str,
                             df_comp: pd.DataFrame) -> bytes:
-    """Genera PNG descargable de la tarjeta de comparacion usando Pillow."""
+    """Genera PNG descargable — fondo blanco, texto oscuro."""
     from PIL import Image, ImageDraw, ImageFont
 
     data_key = "batting" if role == "batter" else "pitching"
@@ -193,23 +189,22 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     team1 = d1s.get("Team", "—")
     team2 = d2s.get("Team", "—")
 
-    # Layout
     COL1, COL2, COL3 = 170, 140, 170
     W = COL1 + COL2 + COL3
     ROW_H, HDR_H, FOOT_H = 26, 54, 22
     n = len(df_comp)
     H = HDR_H + n * ROW_H + FOOT_H
 
-    # Colors (RGB tuples)
-    BG    = (14, 17, 23)
-    ALT   = (20, 26, 40)
-    RED   = (230, 57, 70)
-    BLUE  = (69, 123, 157)
-    WHITE = (255, 255, 255)
-    GRAY  = (130, 130, 130)
-    RHDR  = (140, 30, 42)
-    BHDR  = (38, 68, 90)
-    CHDR  = (10, 12, 22)
+    # Paleta fondo blanco
+    BG    = (255, 255, 255)
+    ALT   = (243, 245, 249)
+    RED   = (220, 50, 60)
+    BLUE  = (60, 110, 145)
+    DARK  = (40, 40, 45)        # texto loser
+    GRAY  = (120, 120, 130)     # texto stat name
+    RHDR  = (195, 40, 52)       # fondo header p1
+    BHDR  = (48, 100, 138)      # fondo header p2
+    CHDR  = (230, 232, 240)     # fondo header central
 
     def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
         suffix = "-Bold" if bold else ""
@@ -236,7 +231,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     img  = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
-    def _text_center(cx, cy, text, font, color):
+    def _tc(cx, cy, text, font, color):
         try:
             bb = draw.textbbox((0, 0), text, font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]
@@ -249,13 +244,13 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     draw.rectangle([COL1, 0, COL1 + COL2 - 1, HDR_H - 1], fill=CHDR)
     draw.rectangle([COL1 + COL2, 0, W - 1, HDR_H - 1], fill=BHDR)
 
-    _text_center(COL1 // 2, 18, name1, fb, WHITE)
-    _text_center(COL1 // 2, 37, f"{team1} · {role.upper()}", fs, (200, 200, 200))
-    _text_center(COL1 + COL2 // 2, 27, "VS", fb, GRAY)
-    _text_center(COL1 + COL2 + COL3 // 2, 18, name2, fb, WHITE)
-    _text_center(COL1 + COL2 + COL3 // 2, 37, f"{team2} · {role.upper()}", fs, (200, 200, 200))
+    _tc(COL1 // 2,              18, name1, fb, (255, 255, 255))
+    _tc(COL1 // 2,              37, f"{team1} · {role.upper()}", fs, (230, 220, 220))
+    _tc(COL1 + COL2 // 2,       27, "VS", fb, GRAY)
+    _tc(COL1 + COL2 + COL3//2, 18, name2, fb, (255, 255, 255))
+    _tc(COL1 + COL2 + COL3//2, 37, f"{team2} · {role.upper()}", fs, (215, 225, 235))
 
-    draw.line([(0, HDR_H), (W, HDR_H)], fill=(50, 50, 60), width=1)
+    draw.line([(0, HDR_H), (W, HDR_H)], fill=(200, 202, 210), width=1)
 
     # Rows
     stats   = df_comp["Stat"].tolist()
@@ -266,15 +261,16 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     for i, (stat, v1, v2, w) in enumerate(zip(stats, vals1, vals2, winners)):
         y0 = HDR_H + i * ROW_H
         draw.rectangle([0, y0, W - 1, y0 + ROW_H - 1], fill=ALT if i % 2 == 0 else BG)
+        draw.line([(0, y0 + ROW_H - 1), (W, y0 + ROW_H - 1)], fill=(220, 222, 228), width=1)
         mid = y0 + ROW_H // 2
-        c1 = RED  if w == name1 else WHITE
-        c2 = BLUE if w == name2 else WHITE
-        _text_center(COL1 // 2, mid, v1, fb if w == name1 else fn, c1)
-        _text_center(COL1 + COL2 // 2, mid, stat, fn, GRAY)
-        _text_center(COL1 + COL2 + COL3 // 2, mid, v2, fb if w == name2 else fn, c2)
+        c1 = RED  if w == name1 else DARK
+        c2 = BLUE if w == name2 else DARK
+        _tc(COL1 // 2,             mid, v1, fb if w == name1 else fn, c1)
+        _tc(COL1 + COL2 // 2,      mid, stat, fn, GRAY)
+        _tc(COL1 + COL2 + COL3//2, mid, v2, fb if w == name2 else fn, c2)
 
     # Footer
-    _text_center(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360", fs, (70, 70, 80))
+    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360", fs, (170, 170, 180))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
