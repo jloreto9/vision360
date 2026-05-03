@@ -87,12 +87,12 @@ else:
 c1, _, c2 = st.columns([5, 1, 5])
 with c1:
     st.markdown(f"### 🔴 {p1}")
-    bat1 = d1.get("batting", {})
-    st.caption(f"{bat1.get('Team','—')} · {role1.upper()} · WAR: {bat1.get('WAR','—')}")
+    d1_stats = d1.get("batting", {}) or d1.get("pitching", {})
+    st.caption(f"{d1_stats.get('Team','—')} · {role1.upper()}")
 with c2:
     st.markdown(f"### 🔵 {p2}")
-    bat2 = d2.get("batting", {})
-    st.caption(f"{bat2.get('Team','—')} · {role2.upper()} · WAR: {bat2.get('WAR','—')}")
+    d2_stats = d2.get("batting", {}) or d2.get("pitching", {})
+    st.caption(f"{d2_stats.get('Team','—')} · {role2.upper()}")
 
 st.divider()
 

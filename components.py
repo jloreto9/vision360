@@ -3,36 +3,34 @@ import pandas as pd
 import numpy as np
 
 
+# Statcast percentile ranks: escala 0-100, mayor = mejor en todos los casos
+# (Baseball Savant invierte las métricas "negativas" para que siempre aplique
+# mayor percentile = mejor jugador)
+
 RADAR_METRICS_BAT = {
-    "wRC+": {"higher_is_better": True, "scale": (0, 200)},
-    "OBP":  {"higher_is_better": True, "scale": (0.200, 0.500)},
-    "SLG":  {"higher_is_better": True, "scale": (0.200, 0.700)},
-    "ISO":  {"higher_is_better": True, "scale": (0.000, 0.350)},
-    "BB%":  {"higher_is_better": True, "scale": (0.03, 0.20)},
-    "K%":   {"higher_is_better": False, "scale": (0.05, 0.40)},
-    "BABIP":{"higher_is_better": True, "scale": (0.200, 0.420)},
-    "BsR":  {"higher_is_better": True, "scale": (-5, 15)},
-    "Def":  {"higher_is_better": True, "scale": (-20, 20)},
-    "WAR":  {"higher_is_better": True, "scale": (-1, 10)},
+    "P_xwOBA":   {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
+    "P_Barrel":  {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
+    "P_EV":      {"higher_is_better": True, "scale": (0, 100), "label": "Exit Velo"},
+    "P_HardHit": {"higher_is_better": True, "scale": (0, 100), "label": "Hard Hit%"},
+    "P_Whiff":   {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
+    "P_K":       {"higher_is_better": True, "scale": (0, 100), "label": "K% (bat)"},
+    "P_BB":      {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
 }
 
 RADAR_METRICS_PIT = {
-    "ERA-":   {"higher_is_better": False, "scale": (40, 160)},
-    "FIP-":   {"higher_is_better": False, "scale": (40, 160)},
-    "K/9":    {"higher_is_better": True,  "scale": (3, 16)},
-    "BB/9":   {"higher_is_better": False, "scale": (1, 6)},
-    "HR/9":   {"higher_is_better": False, "scale": (0, 2.5)},
-    "SwStr%": {"higher_is_better": True,  "scale": (0.04, 0.20)},
-    "BABIP":  {"higher_is_better": False, "scale": (0.200, 0.380)},
-    "LOB%":   {"higher_is_better": True,  "scale": (0.50, 0.90)},
-    "WAR":    {"higher_is_better": True,  "scale": (-1, 8)},
+    "P_xERA":   {"higher_is_better": True, "scale": (0, 100), "label": "xERA"},
+    "P_xwOBA":  {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
+    "P_FBVelo": {"higher_is_better": True, "scale": (0, 100), "label": "FB Velo"},
+    "P_K":      {"higher_is_better": True, "scale": (0, 100), "label": "K%"},
+    "P_BB":     {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
+    "P_Whiff":  {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
+    "P_Barrel": {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
 }
 
 
 def _normalize(value, low, high, higher_is_better):
-    """Normaliza a 0–100."""
     if pd.isna(value):
-        return 50  # neutro
+        return 50
     clipped = max(low, min(high, value))
     pct = (clipped - low) / (high - low) * 100
     return pct if higher_is_better else 100 - pct
@@ -45,7 +43,7 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
-    labels = list(metrics.keys())
+    labels = [cfg.get("label", m) for m, cfg in metrics.items()]
     vals1, vals2 = [], []
 
     for m, cfg in metrics.items():
@@ -55,9 +53,9 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
         vals2.append(_normalize(d2.get(m, np.nan), low, high, hib))
 
     # Cerrar el polígono
-    labels  += [labels[0]]
-    vals1   += [vals1[0]]
-    vals2   += [vals2[0]]
+    labels += [labels[0]]
+    vals1  += [vals1[0]]
+    vals2  += [vals2[0]]
 
     fig = go.Figure()
     for vals, name, color in [
@@ -88,33 +86,36 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
-    all_keys = list(metrics_cfg.keys())
-    # Agregar stats extra que no están en el radar pero sí son relevantes
-    extra = ["G", "PA", "HR", "RBI", "SB", "AVG", "wOBA", "Off"] if role == "batter" \
-        else ["G", "GS", "IP", "W", "L", "SV", "xFIP", "K%", "BB%"]
+    # Stats base (no están en el radar pero son relevantes para la tabla)
+    extra_bat = ["G", "PA", "HR", "R", "RBI", "SB", "AVG", "OBP", "SLG", "OPS", "BB%", "K%", "ISO"]
+    extra_pit = ["G", "GS", "IP", "W", "L", "SV", "ERA", "WHIP", "K/9", "BB/9", "HR/9", "BABIP"]
+    extra = extra_bat if role == "batter" else extra_pit
 
     rows = []
-    for k in all_keys + extra:
-        v1 = d1.get(k, None)
-        v2 = d2.get(k, None)
-        hib = metrics_cfg.get(k, {}).get("higher_is_better", True)
+    for k, cfg in metrics_cfg.items():
+        label = cfg.get("label", k)
+        v1 = d1.get(k)
+        v2 = d2.get(k)
+        hib = cfg.get("higher_is_better", True)
+        winner = _winner(v1, v2, hib, name1, name2)
+        rows.append({"Stat": label, name1: v1, name2: v2, "Ventaja": winner})
 
-        if v1 is not None and v2 is not None:
-            try:
-                winner = name1 if (float(v1) > float(v2)) == hib else name2
-            except Exception:
-                winner = "—"
-        else:
-            winner = "—"
-
-        rows.append({
-            "Stat": k,
-            name1: v1,
-            name2: v2,
-            "Ventaja": winner,
-        })
+    for k in extra:
+        v1 = d1.get(k)
+        v2 = d2.get(k)
+        winner = _winner(v1, v2, True, name1, name2)
+        rows.append({"Stat": k, name1: v1, name2: v2, "Ventaja": winner})
 
     return pd.DataFrame(rows)
+
+
+def _winner(v1, v2, higher_is_better: bool, name1: str, name2: str) -> str:
+    if v1 is None or v2 is None:
+        return "—"
+    try:
+        return name1 if (float(v1) > float(v2)) == higher_is_better else name2
+    except Exception:
+        return "—"
 
 
 def build_sprint_row(p1_data: dict, p2_data: dict, name1: str, name2: str) -> pd.DataFrame:
