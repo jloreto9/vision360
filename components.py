@@ -1,3 +1,5 @@
+import io
+import os
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -16,12 +18,12 @@ RADAR_METRICS_BAT = {
 
 RADAR_METRICS_PIT = {
     "P_xERA":   {"higher_is_better": True, "scale": (0, 100), "label": "xERA"},
-    "P_xwOBA":  {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA"},
+    "P_xwOBA":  {"higher_is_better": True, "scale": (0, 100), "label": "xwOBA vs"},
     "P_FBVelo": {"higher_is_better": True, "scale": (0, 100), "label": "FB Velo"},
     "P_K":      {"higher_is_better": True, "scale": (0, 100), "label": "K%"},
     "P_BB":     {"higher_is_better": True, "scale": (0, 100), "label": "BB%"},
     "P_Whiff":  {"higher_is_better": True, "scale": (0, 100), "label": "Whiff%"},
-    "P_Barrel": {"higher_is_better": True, "scale": (0, 100), "label": "Barrel%"},
+    "P_Barrel": {"higher_is_better": True, "scale": (0, 100), "label": "Barrel% vs"},
 }
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
@@ -29,11 +31,10 @@ RADAR_METRICS_PIT = {
 _INT_STATS   = {"G", "PA", "HR", "R", "RBI", "SB", "GS", "W", "L", "SV"}
 _RATE3_STATS = {"AVG", "OBP", "SLG", "OPS", "ISO", "BABIP"}
 _RATE2_STATS = {"ERA", "WHIP", "K/9", "BB/9", "HR/9"}
-_PCT_STATS   = {"BB%", "K%"}   # almacenados como fracción (0.085) → mostrar "8.5%"
+_PCT_STATS   = {"BB%", "K%"}
 
 
 def _fmt(stat: str, value) -> str:
-    """Formatea un valor para mostrar en tabla. INT, float o percentil."""
     try:
         if value is None or (isinstance(value, float) and np.isnan(value)):
             return "N/D"
@@ -73,6 +74,12 @@ def _winner(v1, v2, higher_is_better: bool, name1: str, name2: str) -> str:
         return "—"
 
 
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 # ── Visualizaciones ─────────────────────────────────────────────────────────
 
 def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str) -> go.Figure:
@@ -95,23 +102,54 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     vals1  += [vals1[0]]
     vals2  += [vals2[0]]
 
+    colors = {"p1": "#E63946", "p2": "#457B9D"}
     fig = go.Figure()
     for vals, name, color in [
-        (vals1, name1, "#E63946"),
-        (vals2, name2, "#457B9D"),
+        (vals1, name1, colors["p1"]),
+        (vals2, name2, colors["p2"]),
     ]:
         fig.add_trace(go.Scatterpolar(
-            r=vals, theta=labels, fill="toself",
-            name=name, line_color=color,
-            fillcolor=color.replace(")", ", 0.15)").replace("rgb", "rgba"),
+            r=vals,
+            theta=labels,
+            fill="toself",
+            name=name,
+            line=dict(color=color, width=2),
+            fillcolor=_hex_to_rgba(color, 0.20),
         ))
 
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+        polar=dict(
+            bgcolor="rgba(255,255,255,0.04)",
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                tickvals=[25, 50, 75, 100],
+                tickfont=dict(color="rgba(255,255,255,0.5)", size=9),
+                gridcolor="rgba(255,255,255,0.15)",
+                linecolor="rgba(255,255,255,0.15)",
+            ),
+            angularaxis=dict(
+                tickfont=dict(color="white", size=11),
+                gridcolor="rgba(255,255,255,0.15)",
+                linecolor="rgba(255,255,255,0.2)",
+            ),
+        ),
         showlegend=True,
-        height=500,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.18,
+            xanchor="center",
+            x=0.5,
+            font=dict(color="white", size=13),
+            bgcolor="rgba(0,0,0,0.35)",
+            bordercolor="rgba(255,255,255,0.2)",
+            borderwidth=1,
+        ),
+        height=520,
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color="white"),
+        margin=dict(t=20, b=80),
     )
     return fig
 
@@ -146,65 +184,101 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 def build_comparison_image(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str,
                             df_comp: pd.DataFrame) -> bytes:
-    """Genera PNG descargable con la tarjeta de comparacion."""
-    data_key = "batting" if role == "batter" else "pitching"
-    d1_stats = p1_data.get(data_key, {})
-    d2_stats = p2_data.get(data_key, {})
-    team1 = d1_stats.get("Team", "—")
-    team2 = d2_stats.get("Team", "—")
+    """Genera PNG descargable de la tarjeta de comparacion usando Pillow."""
+    from PIL import Image, ImageDraw, ImageFont
 
+    data_key = "batting" if role == "batter" else "pitching"
+    d1s = p1_data.get(data_key, {})
+    d2s = p2_data.get(data_key, {})
+    team1 = d1s.get("Team", "—")
+    team2 = d2s.get("Team", "—")
+
+    # Layout
+    COL1, COL2, COL3 = 170, 140, 170
+    W = COL1 + COL2 + COL3
+    ROW_H, HDR_H, FOOT_H = 26, 54, 22
+    n = len(df_comp)
+    H = HDR_H + n * ROW_H + FOOT_H
+
+    # Colors (RGB tuples)
+    BG    = (14, 17, 23)
+    ALT   = (20, 26, 40)
+    RED   = (230, 57, 70)
+    BLUE  = (69, 123, 157)
+    WHITE = (255, 255, 255)
+    GRAY  = (130, 130, 130)
+    RHDR  = (140, 30, 42)
+    BHDR  = (38, 68, 90)
+    CHDR  = (10, 12, 22)
+
+    def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
+        suffix = "-Bold" if bold else ""
+        paths = [
+            f"/usr/share/fonts/truetype/dejavu/DejaVuSans{suffix}.ttf",
+            f"/usr/share/fonts/truetype/liberation/LiberationSans{'-Bold' if bold else '-Regular'}.ttf",
+            f"C:/Windows/Fonts/{'arialbd' if bold else 'arial'}.ttf",
+        ]
+        for p in paths:
+            if os.path.exists(p):
+                try:
+                    return ImageFont.truetype(p, size)
+                except Exception:
+                    continue
+        try:
+            return ImageFont.load_default(size=size)
+        except TypeError:
+            return ImageFont.load_default()
+
+    fb = _load_font(13, bold=True)
+    fn = _load_font(12)
+    fs = _load_font(10)
+
+    img  = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img)
+
+    def _text_center(cx, cy, text, font, color):
+        try:
+            bb = draw.textbbox((0, 0), text, font=font)
+            tw, th = bb[2] - bb[0], bb[3] - bb[1]
+        except AttributeError:
+            tw, th = draw.textsize(text, font=font)
+        draw.text((cx - tw // 2, cy - th // 2), text, font=font, fill=color)
+
+    # Header
+    draw.rectangle([0, 0, COL1 - 1, HDR_H - 1], fill=RHDR)
+    draw.rectangle([COL1, 0, COL1 + COL2 - 1, HDR_H - 1], fill=CHDR)
+    draw.rectangle([COL1 + COL2, 0, W - 1, HDR_H - 1], fill=BHDR)
+
+    _text_center(COL1 // 2, 18, name1, fb, WHITE)
+    _text_center(COL1 // 2, 37, f"{team1} · {role.upper()}", fs, (200, 200, 200))
+    _text_center(COL1 + COL2 // 2, 27, "VS", fb, GRAY)
+    _text_center(COL1 + COL2 + COL3 // 2, 18, name2, fb, WHITE)
+    _text_center(COL1 + COL2 + COL3 // 2, 37, f"{team2} · {role.upper()}", fs, (200, 200, 200))
+
+    draw.line([(0, HDR_H), (W, HDR_H)], fill=(50, 50, 60), width=1)
+
+    # Rows
     stats   = df_comp["Stat"].tolist()
-    vals1   = df_comp[name1].astype(str).replace("nan", "N/D").tolist()
-    vals2   = df_comp[name2].astype(str).replace("nan", "N/D").tolist()
+    vals1   = df_comp[name1].astype(str).replace({"nan": "N/D", "<NA>": "N/D"}).tolist()
+    vals2   = df_comp[name2].astype(str).replace({"nan": "N/D", "<NA>": "N/D"}).tolist()
     winners = df_comp["Ventaja"].tolist()
 
-    DARK    = "#0e1117"
-    ROW_ALT = "#1a1a2e"
-    RED     = "#E63946"
-    BLUE    = "#457B9D"
-    WHITE   = "#ffffff"
-    GRAY    = "#888888"
+    for i, (stat, v1, v2, w) in enumerate(zip(stats, vals1, vals2, winners)):
+        y0 = HDR_H + i * ROW_H
+        draw.rectangle([0, y0, W - 1, y0 + ROW_H - 1], fill=ALT if i % 2 == 0 else BG)
+        mid = y0 + ROW_H // 2
+        c1 = RED  if w == name1 else WHITE
+        c2 = BLUE if w == name2 else WHITE
+        _text_center(COL1 // 2, mid, v1, fb if w == name1 else fn, c1)
+        _text_center(COL1 + COL2 // 2, mid, stat, fn, GRAY)
+        _text_center(COL1 + COL2 + COL3 // 2, mid, v2, fb if w == name2 else fn, c2)
 
-    bg1, bg2, bg_s = [], [], []
-    fc1, fc2 = [], []
-    for i, w in enumerate(winners):
-        bg = ROW_ALT if i % 2 == 0 else DARK
-        bg1.append(bg); bg2.append(bg); bg_s.append(bg)
-        fc1.append(RED  if w == name1 else WHITE)
-        fc2.append(BLUE if w == name2 else WHITE)
+    # Footer
+    _text_center(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360", fs, (70, 70, 80))
 
-    fig = go.Figure(data=[go.Table(
-        columnwidth=[2, 2, 2],
-        header=dict(
-            values=[
-                f"<b>{name1}</b><br><span style='font-size:11px'>{team1} · {role.upper()}</span>",
-                "<b>STAT</b>",
-                f"<b>{name2}</b><br><span style='font-size:11px'>{team2} · {role.upper()}</span>",
-            ],
-            fill_color=[RED, DARK, BLUE],
-            align="center",
-            font=dict(color=WHITE, size=13),
-            line_color="#222",
-            height=48,
-        ),
-        cells=dict(
-            values=[vals1, stats, vals2],
-            fill_color=[bg1, bg_s, bg2],
-            align="center",
-            font=dict(color=[fc1, [GRAY] * len(stats), fc2], size=12),
-            line_color="#222",
-            height=26,
-        ),
-    )])
-
-    fig.update_layout(
-        width=560,
-        height=58 + len(stats) * 26 + 30,
-        margin=dict(l=4, r=4, t=30, b=4),
-        paper_bgcolor=DARK,
-        title=dict(text="⚾ Vision 360", font=dict(color=GRAY, size=11), x=0.5),
-    )
-    return fig.to_image(format="png")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def build_sprint_row(p1_data: dict, p2_data: dict, name1: str, name2: str) -> pd.DataFrame:
