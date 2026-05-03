@@ -30,6 +30,26 @@ RADAR_METRICS_PIT = {
 _EXTRA_BAT = ["G", "PA", "HR", "R", "RBI", "SB"]
 _EXTRA_PIT = ["G", "GS", "IP", "W", "L", "SV"]
 
+# Statcast percentile ranks — se muestran en la tabla, no en el radar
+_STATCAST_BAT = {
+    "P_xwOBA":   "xwOBA",
+    "P_Barrel":  "Barrel%",
+    "P_EV":      "Exit Velo",
+    "P_HardHit": "Hard Hit%",
+    "P_Whiff":   "Whiff%",
+    "P_K":       "K% (Statcast)",
+    "P_BB":      "BB% (Statcast)",
+}
+_STATCAST_PIT = {
+    "P_xERA":   "xERA",
+    "P_xwOBA":  "xwOBA",
+    "P_FBVelo": "FB Velo",
+    "P_K":      "K% (Statcast)",
+    "P_BB":     "BB% (Statcast)",
+    "P_Whiff":  "Whiff%",
+    "P_Barrel": "Barrel%",
+}
+
 # ── Formateo de valores ─────────────────────────────────────────────────────
 
 _INT_STATS   = {"G", "PA", "HR", "R", "RBI", "SB", "GS", "W", "L", "SV"}
@@ -42,6 +62,8 @@ def _fmt(stat: str, value) -> str:
     try:
         if value is None or (isinstance(value, float) and np.isnan(value)):
             return "N/D"
+        if stat.startswith("P_"):
+            return str(int(round(float(value))))
         if stat in _INT_STATS:
             return str(int(round(float(value))))
         if stat in _RATE3_STATS:
@@ -174,6 +196,12 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, True, name1, name2)
         rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+
+    statcast = _STATCAST_BAT if role == "batter" else _STATCAST_PIT
+    for k, label in statcast.items():
+        v1, v2 = d1.get(k), d2.get(k)
+        winner = _winner(v1, v2, True, name1, name2)
+        rows.append({"Stat": label, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     return pd.DataFrame(rows)
 
