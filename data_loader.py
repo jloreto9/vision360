@@ -27,6 +27,25 @@ PIT_COLS = [
 
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
+# Mapas de columnas de valores reales Statcast (est_woba, brl_percent, etc.)
+_BAT_EXP_RENAME = {
+    "est_woba":         "V_xwOBA",
+    "brl_percent":      "V_Barrel",
+    "exit_velocity":    "V_EV",
+    "hard_hit_percent": "V_HardHit",
+    "whiff_percent":    "V_Whiff",
+    "k_percent":        "V_K",
+    "bb_percent":       "V_BB",
+}
+_PIT_EXP_RENAME = {
+    "est_era":          "V_xERA",
+    "est_woba":         "V_xwOBA",
+    "k_percent":        "V_K",
+    "bb_percent":       "V_BB",
+    "whiff_percent":    "V_Whiff",
+    "brl_percent":      "V_Barrel",
+}
+
 
 # ── Helpers de carga ────────────────────────────────────────────────────────
 
@@ -134,8 +153,25 @@ def load_pitching():
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def load_batting_expected():
+    try:
+        return pb.statcast_batter_expected_stats(SEASON)
+    except Exception as e:
+        logger.error("statcast_batter_expected_stats: %s", e)
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_pitching_expected():
+    try:
+        return pb.statcast_pitcher_expected_stats(SEASON)
+    except Exception as e:
+        logger.error("statcast_pitcher_expected_stats: %s", e)
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_fielding():
-    # FanGraphs bloqueado — sin datos defensivos por ahora
     return pd.DataFrame()
 
 
@@ -163,17 +199,48 @@ def detect_role(name: str, bat_df: pd.DataFrame, pit_df: pd.DataFrame) -> str:
     return "batter"
 
 
-def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df) -> dict:
+def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: dict) -> None:
+    """Agrega valores reales Statcast (V_*) al dict del jugador."""
+    if exp_df is None or exp_df.empty:
+        return
+    mlb_id = data_dict.get("mlbID")
+    if mlb_id is None:
+        return
+    try:
+        pid = int(pd.to_numeric(mlb_id, errors="coerce"))
+    except (ValueError, TypeError):
+        return
+    exp_copy = exp_df.copy()
+    exp_copy["player_id"] = pd.to_numeric(exp_copy["player_id"], errors="coerce").astype("Int64")
+    row = exp_copy[exp_copy["player_id"] == pid]
+    if row.empty:
+        return
+    row = row.iloc[0]
+    seen = set()
+    for src_col, v_key in rename_map.items():
+        if v_key in seen:
+            continue
+        if src_col in row.index and not pd.isna(row[src_col]):
+            data_dict[v_key] = row[src_col]
+            seen.add(v_key)
+
+
+def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
+                    bat_exp_df=None, pit_exp_df=None) -> dict:
     role = detect_role(name, bat_df, pit_df)
     result = {"name": name, "role": role}
 
     if role in ("batter", "two-way"):
         row = bat_df[bat_df["Name"] == name]
         result["batting"] = row.iloc[0].to_dict() if not row.empty else {}
+        if result["batting"]:
+            _merge_expected(result["batting"], bat_exp_df, _BAT_EXP_RENAME)
 
     if role in ("pitcher", "two-way"):
         row = pit_df[pit_df["Name"] == name]
         result["pitching"] = row.iloc[0].to_dict() if not row.empty else {}
+        if result["pitching"]:
+            _merge_expected(result["pitching"], pit_exp_df, _PIT_EXP_RENAME)
 
     result["fielding"] = []
 

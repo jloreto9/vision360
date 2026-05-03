@@ -31,24 +31,23 @@ RADAR_METRICS_PIT = {
 _EXTRA_BAT = ["G", "PA", "HR", "R", "RBI", "SB"]
 _EXTRA_PIT = ["G", "GS", "IP", "W", "L", "SV"]
 
-# Statcast percentile ranks — se muestran en la tabla, no en el radar
+# Valores reales Statcast — se muestran en la tabla, no en el radar
 _STATCAST_BAT = {
-    "P_xwOBA":   "xwOBA",
-    "P_Barrel":  "Barrel%",
-    "P_EV":      "Exit Velo",
-    "P_HardHit": "Hard Hit%",
-    "P_Whiff":   "Whiff%",
-    "P_K":       "K% (Statcast)",
-    "P_BB":      "BB% (Statcast)",
+    "V_xwOBA":   {"label": "xwOBA",     "higher_is_better": True},
+    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": True},
+    "V_EV":      {"label": "Exit Velo", "higher_is_better": True},
+    "V_HardHit": {"label": "Hard Hit%", "higher_is_better": True},
+    "V_Whiff":   {"label": "Whiff%",    "higher_is_better": False},
+    "V_K":       {"label": "K%",        "higher_is_better": False},
+    "V_BB":      {"label": "BB%",       "higher_is_better": True},
 }
 _STATCAST_PIT = {
-    "P_xERA":   "xERA",
-    "P_xwOBA":  "xwOBA",
-    "P_FBVelo": "FB Velo",
-    "P_K":      "K% (Statcast)",
-    "P_BB":     "BB% (Statcast)",
-    "P_Whiff":  "Whiff%",
-    "P_Barrel": "Barrel%",
+    "V_xERA":    {"label": "xERA",      "higher_is_better": False},
+    "V_xwOBA":   {"label": "xwOBA",     "higher_is_better": False},
+    "V_K":       {"label": "K%",        "higher_is_better": True},
+    "V_BB":      {"label": "BB%",       "higher_is_better": False},
+    "V_Whiff":   {"label": "Whiff%",    "higher_is_better": True},
+    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": False},
 }
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
@@ -65,6 +64,16 @@ def _fmt(stat: str, value) -> str:
             return "N/D"
         if stat.startswith("P_"):
             return str(int(round(float(value))))
+        if stat.startswith("V_"):
+            v = float(value)
+            if stat == "V_xwOBA":
+                s = f"{v:.3f}"
+                return s[1:] if s.startswith("0.") else s
+            if stat in {"V_xERA"}:
+                return f"{v:.2f}"
+            if stat in {"V_EV", "V_FBVelo"}:
+                return f"{v:.1f}"
+            return f"{v:.1f}%"
         if stat in _INT_STATS:
             return str(int(round(float(value))))
         if stat in _RATE3_STATS:
@@ -199,10 +208,10 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
         rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     statcast = _STATCAST_BAT if role == "batter" else _STATCAST_PIT
-    for k, label in statcast.items():
+    for k, cfg in statcast.items():
         v1, v2 = d1.get(k), d2.get(k)
-        winner = _winner(v1, v2, True, name1, name2)
-        rows.append({"Stat": label, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
+        rows.append({"Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     return pd.DataFrame(rows)
 
