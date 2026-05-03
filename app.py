@@ -4,7 +4,7 @@ from data_loader import (
     load_batting, load_pitching, load_fielding,
     load_sprint, get_player_data, detect_role, SEASON
 )
-from components import build_radar, build_comparison_table, build_sprint_row
+from components import build_radar, build_comparison_table, build_comparison_image, build_sprint_row
 
 # ── Config ──────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -128,6 +128,14 @@ with tab_stats:
             df_comp.style.apply(highlight_winner, axis=1),
             use_container_width=True,
             hide_index=True,
+        )
+
+        img_bytes = build_comparison_image(d1, d2, p1, p2, compare_role, df_comp)
+        st.download_button(
+            label="⬇ Descargar imagen",
+            data=img_bytes,
+            file_name=f"{p1.replace(' ', '_')}_vs_{p2.replace(' ', '_')}.png",
+            mime="image/png",
         )
     else:
         # Mostrar cada uno por separado
