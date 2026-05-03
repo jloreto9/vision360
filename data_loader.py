@@ -27,24 +27,33 @@ PIT_COLS = [
 
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
-# Mapas de columnas de valores reales Statcast (est_woba, brl_percent, etc.)
-_BAT_EXP_RENAME = {
-    "est_woba":         "V_xwOBA",
-    "brl_percent":      "V_Barrel",
-    "exit_velocity":    "V_EV",
-    "hard_hit_percent": "V_HardHit",
-    "whiff_percent":    "V_Whiff",
-    "k_percent":        "V_K",
-    "bb_percent":       "V_BB",
-}
-_PIT_EXP_RENAME = {
-    "est_era":          "V_xERA",
-    "est_woba":         "V_xwOBA",
-    "k_percent":        "V_K",
-    "bb_percent":       "V_BB",
-    "whiff_percent":    "V_Whiff",
-    "brl_percent":      "V_Barrel",
-}
+# Mapas de columnas de valores reales Statcast — varios nombres posibles, gana el primero que exista
+_BAT_EXP_RENAME = [
+    ("est_woba",          "V_xwOBA"),
+    ("xwoba",             "V_xwOBA"),
+    ("brl_percent",       "V_Barrel"),
+    ("barrel",            "V_Barrel"),
+    ("barrel_batted_rate","V_Barrel"),
+    ("exit_velocity",     "V_EV"),
+    ("launch_speed",      "V_EV"),
+    ("hard_hit_percent",  "V_HardHit"),
+    ("whiff_percent",     "V_Whiff"),
+    ("k_percent",         "V_K"),
+    ("bb_percent",        "V_BB"),
+]
+_PIT_EXP_RENAME = [
+    ("est_era",           "V_xERA"),
+    ("xera",              "V_xERA"),
+    ("est_woba",          "V_xwOBA"),
+    ("xwoba",             "V_xwOBA"),
+    ("k_percent",         "V_K"),
+    ("p_k_percent",       "V_K"),
+    ("bb_percent",        "V_BB"),
+    ("p_bb_percent",      "V_BB"),
+    ("whiff_percent",     "V_Whiff"),
+    ("brl_percent",       "V_Barrel"),
+    ("barrel",            "V_Barrel"),
+]
 
 
 # ── Helpers de carga ────────────────────────────────────────────────────────
@@ -199,29 +208,46 @@ def detect_role(name: str, bat_df: pd.DataFrame, pit_df: pd.DataFrame) -> str:
     return "batter"
 
 
-def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: dict) -> None:
-    """Agrega valores reales Statcast (V_*) al dict del jugador."""
+def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: list) -> None:
     if exp_df is None or exp_df.empty:
         return
+
+    matched = pd.Series(dtype=object)
+
+    # Intento 1: por player_id (solo funciona cuando mlbID viene de fetch en vivo)
     mlb_id = data_dict.get("mlbID")
-    if mlb_id is None:
+    if mlb_id is not None and "player_id" in exp_df.columns:
+        try:
+            pid = int(pd.to_numeric(mlb_id, errors="coerce"))
+            tmp = exp_df.copy()
+            tmp["player_id"] = pd.to_numeric(tmp["player_id"], errors="coerce")
+            hit = tmp[tmp["player_id"] == pid]
+            if not hit.empty:
+                matched = hit.iloc[0]
+        except (ValueError, TypeError):
+            pass
+
+    # Intento 2: por nombre "Last, First" (cubre cuando datos vienen del CSV)
+    if matched.empty and "last_name, first_name" in exp_df.columns:
+        name = data_dict.get("Name", "")
+        parts = name.rsplit(" ", 1)
+        if len(parts) == 2:
+            last_first = f"{parts[1]}, {parts[0]}"
+            exp_copy = exp_df.copy()
+            exp_copy["_fn"] = exp_copy["last_name, first_name"].str.lower()
+            hit = exp_copy[exp_copy["_fn"] == last_first.lower()]
+            if not hit.empty:
+                matched = hit.iloc[0]
+
+    if matched.empty:
         return
-    try:
-        pid = int(pd.to_numeric(mlb_id, errors="coerce"))
-    except (ValueError, TypeError):
-        return
-    exp_copy = exp_df.copy()
-    exp_copy["player_id"] = pd.to_numeric(exp_copy["player_id"], errors="coerce").astype("Int64")
-    row = exp_copy[exp_copy["player_id"] == pid]
-    if row.empty:
-        return
-    row = row.iloc[0]
-    seen = set()
-    for src_col, v_key in rename_map.items():
+
+    seen: set = set()
+    for src_col, v_key in rename_map:
         if v_key in seen:
             continue
-        if src_col in row.index and not pd.isna(row[src_col]):
-            data_dict[v_key] = row[src_col]
+        if src_col in matched.index and not pd.isna(matched[src_col]):
+            data_dict[v_key] = matched[src_col]
             seen.add(v_key)
 
 
