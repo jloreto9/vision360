@@ -45,7 +45,8 @@ def _fmt(stat: str, value) -> str:
         if stat in _INT_STATS:
             return str(int(round(float(value))))
         if stat in _RATE3_STATS:
-            return f"{float(value):.3f}"
+            s = f"{float(value):.3f}"
+            return s[1:] if s.startswith("0.") else s
         if stat in _PCT_STATS:
             return f"{float(value) * 100:.1f}%"
         if stat in _RATE2_STATS:
