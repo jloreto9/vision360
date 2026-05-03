@@ -1,3 +1,4 @@
+import streamlit as st
 import pybaseball as pb
 import pandas as pd
 import numpy as np
@@ -51,7 +52,7 @@ def load_pitching():
 def load_fielding():
     df = _safe_fg(pb.fielding_stats, SEASON, SEASON, qual=50)
     cols = [c for c in FIELD_COLS if c in df.columns]
-    return df.copy()
+    return df[cols].copy()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
