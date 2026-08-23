@@ -120,7 +120,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(
     "👨‍💻 **Desarrollado por Jorge Leonardo Loreto**  \n"
     "*AI Data Scientist & Baseball Analytics*  \n"
-    "[GitHub](https://github.com/jloreto9) · [Portafolio](https://jloreto9.github.io)"
+    "[GitHub](https://github.com/jloreto9) · [Portafolio](https://jloreto9.github.io/jloreto9/)"
 )
 
 # ── Header ───────────────────────────────────────────────────────────────────
