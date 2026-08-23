@@ -69,17 +69,17 @@ _PIT_EV_RENAME = [
 ]
 
 
-# ── Normalización avanzada de nombres ─────────────────────────────────────
+# ── Normalización avanzada de nombres (ordenación canónica de tokens) ─────
 
 def normalize_name_key(name: str) -> str:
-    """Normaliza un nombre eliminando acentos, sufijos (Jr, II, etc.) y puntuación."""
-    if not isinstance(name, str):
+    """Normaliza un nombre eliminando acentos, sufijos (Jr, II, etc.) y ordenando tokens."""
+    if not isinstance(name, str) or not name.strip():
         return ""
     text = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("utf-8").lower()
     text = text.replace(".", "").replace(",", " ").strip()
     suffixes = {"jr", "sr", "ii", "iii", "iv", "v"}
     tokens = [t for t in text.split() if t and t not in suffixes]
-    return " ".join(tokens)
+    return " ".join(sorted(tokens))
 
 
 # ── Helpers de carga ────────────────────────────────────────────────────────
@@ -168,12 +168,15 @@ def _build_batting(br: pd.DataFrame, sc: pd.DataFrame, exp_df: pd.DataFrame = No
     df = br.rename(columns={"Tm": "Team", "BA": "AVG"}).copy()
     df = df.sort_values("PA", ascending=False).drop_duplicates("Name").copy()
 
-    df["BB%"] = (pd.to_numeric(df["BB"], errors="coerce") / pd.to_numeric(df["PA"], errors="coerce")).round(3)
-    df["K%"]  = (pd.to_numeric(df["SO"], errors="coerce") / pd.to_numeric(df["PA"], errors="coerce")).round(3)
+    if "BB" in df.columns and "PA" in df.columns:
+        df["BB%"] = (pd.to_numeric(df["BB"], errors="coerce") / pd.to_numeric(df["PA"], errors="coerce")).round(3)
+    if "SO" in df.columns and "PA" in df.columns:
+        df["K%"]  = (pd.to_numeric(df["SO"], errors="coerce") / pd.to_numeric(df["PA"], errors="coerce")).round(3)
     
-    avg_num = pd.to_numeric(df["AVG"], errors="coerce")
-    slg_num = pd.to_numeric(df["SLG"], errors="coerce")
-    df["ISO"] = (slg_num - avg_num).round(3)
+    if "SLG" in df.columns and "AVG" in df.columns and "ISO" not in df.columns:
+        avg_num = pd.to_numeric(df["AVG"], errors="coerce")
+        slg_num = pd.to_numeric(df["SLG"], errors="coerce")
+        df["ISO"] = (slg_num - avg_num).round(3)
 
     if "mlbID" in df.columns:
         df["mlbID"] = pd.to_numeric(df["mlbID"], errors="coerce").astype("Int64")
@@ -196,44 +199,6 @@ def _build_batting(br: pd.DataFrame, sc: pd.DataFrame, exp_df: pd.DataFrame = No
             df = df.merge(sc_sel, left_on="mlbID", right_on="player_id", how="left")
             df.drop(columns=["player_id"], errors="ignore", inplace=True)
 
-    # Expected stats (xBA, xSLG, xwOBA)
-    if exp_df is not None and not exp_df.empty:
-        exp_renamed = exp_df.rename(columns={
-            "est_ba": "V_xBA", "xba": "V_xBA",
-            "est_slg": "V_xSLG", "xslg": "V_xSLG",
-            "est_woba": "V_xwOBA", "xwoba": "V_xwOBA",
-        })
-        cols_to_add = [c for c in ["V_xBA", "V_xSLG", "V_xwOBA"] if c in exp_renamed.columns]
-        if "player_id" in exp_renamed.columns and "mlbID" in df.columns:
-            exp_renamed["player_id"] = pd.to_numeric(exp_renamed["player_id"], errors="coerce").astype("Int64")
-            exp_sub = exp_renamed[["player_id"] + cols_to_add].drop_duplicates("player_id")
-            df = df.merge(exp_sub, left_on="mlbID", right_on="player_id", how="left")
-            df.drop(columns=["player_id"], errors="ignore", inplace=True)
-
-    # Exit Velo, Barrel%, HardHit%, Whiff%
-    if ev_df is not None and not ev_df.empty:
-        ev_renamed = ev_df.rename(columns={
-            "avg_hit_speed": "V_EV", "exit_velocity": "V_EV",
-            "brl_percent": "V_Barrel", "barrel": "V_Barrel",
-            "ev95percent": "V_HardHit", "hard_hit_percent": "V_HardHit",
-            "whiff_percent": "V_Whiff",
-        })
-        ev_cols = [c for c in ["V_EV", "V_Barrel", "V_HardHit", "V_Whiff"] if c in ev_renamed.columns]
-        if "player_id" in ev_renamed.columns and "mlbID" in df.columns:
-            ev_renamed["player_id"] = pd.to_numeric(ev_renamed["player_id"], errors="coerce").astype("Int64")
-            ev_sub = ev_renamed[["player_id"] + ev_cols].drop_duplicates("player_id")
-            df = df.merge(ev_sub, left_on="mlbID", right_on="player_id", how="left")
-            df.drop(columns=["player_id"], errors="ignore", inplace=True)
-
-    # Calcular diferenciales Statcast
-    if "V_xBA" in df.columns:
-        df["V_diff_BA"] = (pd.to_numeric(df["AVG"], errors="coerce") - pd.to_numeric(df["V_xBA"], errors="coerce")).round(3)
-    if "V_xSLG" in df.columns:
-        df["V_diff_SLG"] = (pd.to_numeric(df["SLG"], errors="coerce") - pd.to_numeric(df["V_xSLG"], errors="coerce")).round(3)
-    if "V_xwOBA" in df.columns:
-        obp_col = "OBP" if "OBP" in df.columns else "AVG"
-        df["V_diff_wOBA"] = (pd.to_numeric(df[obp_col], errors="coerce") - pd.to_numeric(df["V_xwOBA"], errors="coerce")).round(3)
-
     # Fallback percentiles empíricos
     df = _add_empirical_percentiles(df, "batter")
 
@@ -251,8 +216,10 @@ def _build_pitching(brp: pd.DataFrame, scp: pd.DataFrame, exp_df: pd.DataFrame =
     }).copy()
     df = df.sort_values("IP", ascending=False).drop_duplicates("Name").copy()
 
-    df["BB/9"] = ((pd.to_numeric(df["BB"], errors="coerce") / pd.to_numeric(df["IP"], errors="coerce")) * 9).round(2)
-    df["HR/9"] = ((pd.to_numeric(df["HR"], errors="coerce") / pd.to_numeric(df["IP"], errors="coerce")) * 9).round(2)
+    if "BB" in df.columns and "IP" in df.columns and "BB/9" not in df.columns:
+        df["BB/9"] = ((pd.to_numeric(df["BB"], errors="coerce") / pd.to_numeric(df["IP"], errors="coerce")) * 9).round(2)
+    if "HR" in df.columns and "IP" in df.columns and "HR/9" not in df.columns:
+        df["HR/9"] = ((pd.to_numeric(df["HR"], errors="coerce") / pd.to_numeric(df["IP"], errors="coerce")) * 9).round(2)
 
     if "mlbID" in df.columns:
         df["mlbID"] = pd.to_numeric(df["mlbID"], errors="coerce").astype("Int64")
@@ -269,43 +236,11 @@ def _build_pitching(brp: pd.DataFrame, scp: pd.DataFrame, exp_df: pd.DataFrame =
             "brl_percent":   "P_Barrel",
         })
         sc_cols = ["player_id", "P_xERA", "P_xwOBA", "P_FBVelo", "P_K", "P_BB", "P_Whiff", "P_Barrel"]
-        scp_sel = scp_sel[[c for c in sc_cols if c in sc_sel.columns]].copy()
+        scp_sel = scp_sel[[c for c in sc_cols if c in scp_sel.columns]].copy()
         if "player_id" in scp_sel.columns and "mlbID" in df.columns:
             scp_sel["player_id"] = scp_sel["player_id"].astype("Int64")
             df = df.merge(scp_sel, left_on="mlbID", right_on="player_id", how="left")
             df.drop(columns=["player_id"], errors="ignore", inplace=True)
-
-    # Expected stats (xERA, xwOBA)
-    if exp_df is not None and not exp_df.empty:
-        exp_renamed = exp_df.rename(columns={
-            "est_era": "V_xERA", "xera": "V_xERA",
-            "est_woba": "V_xwOBA", "xwoba": "V_xwOBA",
-        })
-        cols_to_add = [c for c in ["V_xERA", "V_xwOBA"] if c in exp_renamed.columns]
-        if "player_id" in exp_renamed.columns and "mlbID" in df.columns:
-            exp_renamed["player_id"] = pd.to_numeric(exp_renamed["player_id"], errors="coerce").astype("Int64")
-            exp_sub = exp_renamed[["player_id"] + cols_to_add].drop_duplicates("player_id")
-            df = df.merge(exp_sub, left_on="mlbID", right_on="player_id", how="left")
-            df.drop(columns=["player_id"], errors="ignore", inplace=True)
-
-    # Exit Velo, Barrel%, HardHit%, Whiff%
-    if ev_df is not None and not ev_df.empty:
-        ev_renamed = ev_df.rename(columns={
-            "avg_hit_speed": "V_EV", "exit_velocity": "V_EV",
-            "brl_percent": "V_Barrel", "barrel": "V_Barrel",
-            "ev95percent": "V_HardHit", "hard_hit_percent": "V_HardHit",
-            "whiff_percent": "V_Whiff",
-        })
-        ev_cols = [c for c in ["V_EV", "V_Barrel", "V_HardHit", "V_Whiff"] if c in ev_renamed.columns]
-        if "player_id" in ev_renamed.columns and "mlbID" in df.columns:
-            ev_renamed["player_id"] = pd.to_numeric(ev_renamed["player_id"], errors="coerce").astype("Int64")
-            ev_sub = ev_renamed[["player_id"] + ev_cols].drop_duplicates("player_id")
-            df = df.merge(ev_sub, left_on="mlbID", right_on="player_id", how="left")
-            df.drop(columns=["player_id"], errors="ignore", inplace=True)
-
-    # Calcular diferencial de ERA
-    if "V_xERA" in df.columns:
-        df["V_diff_ERA"] = (pd.to_numeric(df["ERA"], errors="coerce") - pd.to_numeric(df["V_xERA"], errors="coerce")).round(2)
 
     # Fallback percentiles empíricos
     df = _add_empirical_percentiles(df, "pitcher")
@@ -323,9 +258,7 @@ def load_batting():
         return _add_empirical_percentiles(csv, "batter")
     br = _safe_fg(pb.batting_stats_bref, SEASON)
     sc = _safe_fg(pb.statcast_batter_percentile_ranks, SEASON)
-    exp = _safe_fg(pb.statcast_batter_expected_stats, SEASON)
-    ev = _safe_fg(getattr(pb, "statcast_batter_exitvelo_barrels", lambda *a: pd.DataFrame()), SEASON)
-    return _build_batting(br, sc, exp, ev)
+    return _build_batting(br, sc)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -335,9 +268,7 @@ def load_pitching():
         return _add_empirical_percentiles(csv, "pitcher")
     brp = _safe_fg(pb.pitching_stats_bref, SEASON)
     scp = _safe_fg(pb.statcast_pitcher_percentile_ranks, SEASON)
-    exp = _safe_fg(pb.statcast_pitcher_expected_stats, SEASON)
-    ev = _safe_fg(getattr(pb, "statcast_pitcher_exitvelo_barrels", lambda *a: pd.DataFrame()), SEASON)
-    return _build_pitching(brp, scp, exp, ev)
+    return _build_pitching(brp, scp)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -445,7 +376,7 @@ def _merge_expected(data_dict: dict, exp_df: pd.DataFrame, rename_map: list) -> 
         except (ValueError, TypeError):
             pass
 
-    # Intento 2: por normalización de nombres
+    # Intento 2: por normalización de nombres token-sorted
     if matched.empty:
         target_norm = normalize_name_key(data_dict.get("Name", ""))
         if target_norm:
@@ -476,14 +407,34 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
     role = detect_role(name, bat_df, pit_df)
     result = {"name": name, "role": role, "mlbID": None}
 
+    # Resolver mlbID temprano
+    chadwick = _get_chadwick_map()
+    norm_n = normalize_name_key(name)
+    if norm_n in chadwick:
+        result["mlbID"] = chadwick[norm_n]
+
     if role in ("batter", "two-way") and not bat_df.empty:
         row = bat_df[bat_df["Name"] == name]
         if not row.empty:
             result["batting"] = row.iloc[0].to_dict()
-            if pd.notna(result["batting"].get("mlbID")):
+            if result.get("mlbID"):
+                result["batting"]["mlbID"] = result["mlbID"]
+            elif pd.notna(result["batting"].get("mlbID")):
                 result["mlbID"] = int(result["batting"]["mlbID"])
+
             _merge_expected(result["batting"], bat_exp_df, _BAT_EXP_RENAME)
             _merge_expected(result["batting"], bat_ev_df,  _BAT_EV_RENAME)
+
+            # Calcular diferenciales en tiempo real
+            b = result["batting"]
+            if "V_xBA" in b and "AVG" in b and pd.notna(b["V_xBA"]) and pd.notna(b["AVG"]):
+                b["V_diff_BA"] = round(float(b["AVG"]) - float(b["V_xBA"]), 3)
+            if "V_xSLG" in b and "SLG" in b and pd.notna(b["V_xSLG"]) and pd.notna(b["SLG"]):
+                b["V_diff_SLG"] = round(float(b["SLG"]) - float(b["V_xSLG"]), 3)
+            if "V_xwOBA" in b and pd.notna(b["V_xwOBA"]):
+                ref_obp = b.get("OBP") if pd.notna(b.get("OBP")) else b.get("AVG")
+                if pd.notna(ref_obp):
+                    b["V_diff_wOBA"] = round(float(ref_obp) - float(b["V_xwOBA"]), 3)
         else:
             result["batting"] = {}
 
@@ -491,19 +442,19 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
         row = pit_df[pit_df["Name"] == name]
         if not row.empty:
             result["pitching"] = row.iloc[0].to_dict()
-            if not result.get("mlbID") and pd.notna(result["pitching"].get("mlbID")):
+            if result.get("mlbID"):
+                result["pitching"]["mlbID"] = result["mlbID"]
+            elif pd.notna(result["pitching"].get("mlbID")):
                 result["mlbID"] = int(result["pitching"]["mlbID"])
+
             _merge_expected(result["pitching"], pit_exp_df, _PIT_EXP_RENAME)
             _merge_expected(result["pitching"], pit_ev_df,  _PIT_EV_RENAME)
+
+            p = result["pitching"]
+            if "V_xERA" in p and "ERA" in p and pd.notna(p["V_xERA"]) and pd.notna(p["ERA"]):
+                p["V_diff_ERA"] = round(float(p["ERA"]) - float(p["V_xERA"]), 2)
         else:
             result["pitching"] = {}
-
-    # Lookup automático de mlbID si no venía en la fila
-    if not result.get("mlbID"):
-        chadwick = _get_chadwick_map()
-        norm_n = normalize_name_key(name)
-        if norm_n in chadwick:
-            result["mlbID"] = chadwick[norm_n]
 
     # Headshot oficial de MLB
     if result.get("mlbID"):
@@ -525,10 +476,10 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
                     if not fmatch.empty:
                         break
         if fmatch.empty:
-            norm_name = normalize_name_key(name)
+            target_norm = normalize_name_key(name)
             for name_col in ["last_name, first_name", "Name", "name", "player_name"]:
                 if name_col in field_df.columns:
-                    fmatch = field_df[field_df[name_col].apply(normalize_name_key) == norm_name]
+                    fmatch = field_df[field_df[name_col].apply(normalize_name_key) == target_norm]
                     if not fmatch.empty:
                         break
 
@@ -540,15 +491,15 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
             field_entry["Posición"] = pos
             field_entry["Equipo"] = team
             if "outs_above_average" in fmatch.columns and pd.notna(row0.get("outs_above_average")):
-                field_entry["OAA"] = row0.get("outs_above_average")
+                field_entry["OAA"] = int(row0.get("outs_above_average"))
             if "fielding_runs_prevented" in fmatch.columns and pd.notna(row0.get("fielding_runs_prevented")):
-                field_entry["Runs Prevented"] = row0.get("fielding_runs_prevented")
+                field_entry["Runs Prevented"] = int(row0.get("fielding_runs_prevented"))
             if "actual_success_rate_formatted" in fmatch.columns and pd.notna(row0.get("actual_success_rate_formatted")):
-                field_entry["Success Rate"] = row0.get("actual_success_rate_formatted")
+                field_entry["Success Rate"] = str(row0.get("actual_success_rate_formatted"))
             if "adj_estimated_success_rate_formatted" in fmatch.columns and pd.notna(row0.get("adj_estimated_success_rate_formatted")):
-                field_entry["Expected Success"] = row0.get("adj_estimated_success_rate_formatted")
+                field_entry["Expected Success"] = str(row0.get("adj_estimated_success_rate_formatted"))
             if "diff_success_rate_formatted" in fmatch.columns and pd.notna(row0.get("diff_success_rate_formatted")):
-                field_entry["diff Success"] = row0.get("diff_success_rate_formatted")
+                field_entry["diff Success"] = str(row0.get("diff_success_rate_formatted"))
             for col in ["G", "GS", "Inn", "PO", "A", "E", "DP", "Fld%"]:
                 if col in fmatch.columns and pd.notna(row0.get(col)):
                     field_entry[col] = row0.get(col)
@@ -557,17 +508,16 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
     # Sprint Speed
     if sprint_df is not None and not sprint_df.empty:
         target_norm = normalize_name_key(name)
-        sprint_df_tmp = sprint_df.copy()
-        if "last_name, first_name" in sprint_df_tmp.columns:
-            sprint_df_tmp["_norm"] = sprint_df_tmp["last_name, first_name"].apply(normalize_name_key)
-            srow = sprint_df_tmp[sprint_df_tmp["_norm"] == target_norm]
-            result["sprint"] = srow.iloc[0].to_dict() if not srow.empty else {}
-        elif "full_name" in sprint_df_tmp.columns:
-            sprint_df_tmp["_norm"] = sprint_df_tmp["full_name"].apply(normalize_name_key)
-            srow = sprint_df_tmp[sprint_df_tmp["_norm"] == target_norm]
-            result["sprint"] = srow.iloc[0].to_dict() if not srow.empty else {}
-        else:
-            result["sprint"] = {}
+        srow = pd.DataFrame()
+        if result.get("mlbID") and "player_id" in sprint_df.columns:
+            srow = sprint_df[pd.to_numeric(sprint_df["player_id"], errors="coerce") == result["mlbID"]]
+        if srow.empty:
+            for name_col in ["last_name, first_name", "full_name", "Name", "name"]:
+                if name_col in sprint_df.columns:
+                    srow = sprint_df[sprint_df[name_col].apply(normalize_name_key) == target_norm]
+                    if not srow.empty:
+                        break
+        result["sprint"] = srow.iloc[0].to_dict() if not srow.empty else {}
     else:
         result["sprint"] = {}
 

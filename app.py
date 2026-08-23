@@ -21,21 +21,13 @@ st.set_page_config(
 st.markdown("""
 <style>
     .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
-    .player-card {
-        background: rgba(15, 23, 42, 0.65);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        backdrop-filter: blur(8px);
-    }
     .badge-p1 {
         background-color: #E63946;
         color: white;
         padding: 4px 10px;
         border-radius: 6px;
         font-weight: bold;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
     }
     .badge-p2 {
         background-color: #457B9D;
@@ -43,14 +35,12 @@ st.markdown("""
         padding: 4px 10px;
         border-radius: 6px;
         font-weight: bold;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
     }
-    .matchup-kpi {
-        text-align: center;
-        padding: 8px;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+    .author-badge {
+        font-size: 0.85rem;
+        color: #94A3B8;
+        padding-top: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -77,10 +67,10 @@ if not all_players:
     )
     st.stop()
 
-# ── Sidebar: Filtros de Selección ───────────────────────────────────────────
-st.sidebar.image("https://midfield.mlbstatic.com/v1/league/103/spots/72", width=70)
+# ── Sidebar: Filtros y Autoría ───────────────────────────────────────────────
+st.sidebar.image("https://midfield.mlbstatic.com/v1/league/103/spots/72", width=65)
 st.sidebar.title("⚾ Vision 360")
-st.sidebar.caption(f"Temporada MLB {SEASON} · FanGraphs & Baseball Savant")
+st.sidebar.caption(f"Temporada MLB {SEASON} · Statcast & Sabermetrics")
 
 st.sidebar.markdown("### 🔍 Filtros de Búsqueda")
 role_filter = st.sidebar.selectbox(
@@ -119,9 +109,17 @@ if not filtered_players:
     st.sidebar.warning("No hay jugadores que coincidan con los filtros seleccionados.")
     filtered_players = all_players
 
+# Autoría en Sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    "👨‍💻 **Desarrollado por Jorge Leonardo Loreto**  \n"
+    "*Data Scientist & Baseball Analytics*  \n"
+    "[GitHub](https://github.com/jloreto9) · [Portafolio](https://jloreto9.github.io)"
+)
+
 # ── Header ───────────────────────────────────────────────────────────────────
 st.title("⚾ Vision 360 — MLB Player Comparison")
-st.caption(f"Comparación head-to-head integral · Temporada {SEASON} · Statcast Percentiles 0–100")
+st.caption(f"Comparación head-to-head integral · Temporada MLB {SEASON} · Desarrollado por **Jorge Leonardo Loreto**")
 
 # ── Selección de jugadores ───────────────────────────────────────────────────
 col1, col_vs, col2 = st.columns([5, 1, 5])
@@ -134,7 +132,6 @@ with col_vs:
 
 with col2:
     default_idx = min(1, len(filtered_players) - 1)
-    # Evitar que el default sea el mismo si hay más de 1 jugador
     if len(filtered_players) > 1 and filtered_players[default_idx] == p1:
         default_idx = 1 if len(filtered_players) > 1 else 0
     p2 = st.selectbox("🔵 Jugador 2 (Azul)", filtered_players, index=default_idx, key="p2")
@@ -246,7 +243,7 @@ with tab_stats:
 
         img_bytes = build_comparison_image(d1, d2, p1, p2, compare_role, df_comp)
         st.download_button(
-            label="⬇ Descargar Tarjeta Comparativa (PNG)",
+            label="⬇ Descargar Tarjeta Comparativa con Fotos (PNG)",
             data=img_bytes,
             file_name=f"{p1.replace(' ', '_')}_vs_{p2.replace(' ', '_')}.png",
             mime="image/png",
@@ -308,7 +305,7 @@ with tab_field:
             if frows:
                 st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
             else:
-                st.caption("Sin registros defensivos directos en la base de datos.")
+                st.caption("Sin registros defensivos de Statcast OAA disponibles.")
 
 # ── TAB 5: Sprint Speed ───────────────────────────────────────────────────────
 with tab_speed:
@@ -341,3 +338,12 @@ with tab_speed:
             st.caption("Promedio MLB ≈ 27.0 ft/s · Nivel Élite: 30+ ft/s")
         except (ValueError, TypeError):
             st.caption("Datos de Sprint Speed no numéricos.")
+
+# Footer de autoría
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: #64748B; font-size: 0.85rem;'>"
+    "⚾ <b>Vision 360</b> · Desarrollado por <b>Jorge Leonardo Loreto</b> · Economista & Data Scientist · MLB Sabermetrics"
+    "</div>",
+    unsafe_allow_html=True
+)

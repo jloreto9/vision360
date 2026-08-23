@@ -1,8 +1,10 @@
 import io
 import os
+import urllib.request
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ── Métricas del radar (Statcast percentile ranks 0-100, mayor = mejor) ──────
@@ -64,9 +66,9 @@ _STATCAST_BAT = {
 }
 
 _DIFF_BAT = {
-    "V_diff_BA":   {"label": "diff (BA - xBA)",     "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
-    "V_diff_SLG":  {"label": "diff (SLG - xSLG)",   "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
-    "V_diff_wOBA": {"label": "diff (OBP - xwOBA)",  "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
+    "V_diff_BA":   {"label": "diff (BA - xBA)",     "higher_is_better": False},
+    "V_diff_SLG":  {"label": "diff (SLG - xSLG)",   "higher_is_better": False},
+    "V_diff_wOBA": {"label": "diff (OBP - xwOBA)",  "higher_is_better": False},
 }
 
 _STATCAST_PIT = {
@@ -79,12 +81,12 @@ _STATCAST_PIT = {
 }
 
 _DIFF_PIT = {
-    "V_diff_ERA":  {"label": "diff (ERA - xERA)", "higher_is_better": True, "note": "Positivo = ERA inflada / mala suerte"},
+    "V_diff_ERA":  {"label": "diff (ERA - xERA)", "higher_is_better": True},
 }
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
 
-_INT_STATS   = {"G", "PA", "HR", "R", "RBI", "SB", "GS", "W", "L", "SV"}
+_INT_STATS   = {"G", "PA", "HR", "R", "RBI", "SB", "GS", "W", "L", "SV", "OAA", "Runs Prevented"}
 _RATE3_STATS = {"AVG", "OBP", "SLG", "OPS", "ISO", "BABIP"}
 _RATE2_STATS = {"ERA", "WHIP", "K/9", "BB/9", "HR/9"}
 _PCT_STATS   = {"BB%", "K%"}
@@ -92,18 +94,18 @@ _PCT_STATS   = {"BB%", "K%"}
 
 def _fmt(stat: str, value) -> str:
     try:
-        if value is None or (isinstance(value, float) and np.isnan(value)) or str(value).strip() in ("", "nan", "<NA>"):
+        if value is None or (isinstance(value, float) and np.isnan(value)) or str(value).strip() in ("", "nan", "<NA>", "None"):
             return "N/D"
         if stat.startswith("P_"):
             return str(int(round(float(value))))
-        if stat.startswith("V_diff_"):
-            v = float(value)
+        if stat.startswith("V_diff_") or stat.startswith("diff"):
+            v = float(str(value).replace("%", "").replace("+", ""))
             sign = "+" if v > 0 else ""
             if "ERA" in stat:
                 return f"{sign}{v:.2f}"
             return f"{sign}{v:.3f}"
         if stat.startswith("V_"):
-            v = float(value)
+            v = float(str(value).replace("%", "").replace(" mph", ""))
             if stat in {"V_xwOBA", "V_xBA", "V_xSLG"}:
                 s = f"{v:.3f}"
                 return s[1:] if s.startswith("0.") else s
@@ -112,6 +114,10 @@ def _fmt(stat: str, value) -> str:
             if stat in {"V_EV", "V_FBVelo"}:
                 return f"{v:.1f} mph"
             return f"{v:.1f}%"
+        if stat == "sprint_speed":
+            return f"{float(value):.1f} ft/s"
+        if stat == "hp_to_1b":
+            return f"{float(value):.2f} s"
         if stat in _INT_STATS:
             return str(int(round(float(value))))
         if stat in _RATE3_STATS:
@@ -123,9 +129,11 @@ def _fmt(stat: str, value) -> str:
             return f"{float(value):.2f}"
         if stat == "IP":
             return f"{float(value):.1f}"
+        if str(value).endswith("%"):
+            return str(value)
         return str(value)
     except (ValueError, TypeError):
-        return "N/D"
+        return str(value) if value is not None else "N/D"
 
 
 # ── Helpers internos ────────────────────────────────────────────────────────
@@ -142,7 +150,11 @@ def _winner(v1, v2, higher_is_better: bool, name1: str, name2: str) -> str:
     if v1 is None or v2 is None:
         return "—"
     try:
-        f1, f2 = float(v1), float(v2)
+        s1 = str(v1).replace("%", "").replace(" mph", "").replace(" ft/s", "").replace(" s", "").strip()
+        s2 = str(v2).replace("%", "").replace(" mph", "").replace(" ft/s", "").replace(" s", "").strip()
+        if s1 in ("N/D", "—", "nan") or s2 in ("N/D", "—", "nan"):
+            return "—"
+        f1, f2 = float(s1), float(s2)
         if np.isnan(f1) or np.isnan(f2):
             return "—"
         if abs(f1 - f2) < 1e-5:
@@ -167,7 +179,6 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
-    # Usar etiquetas amigables en los ejes del radar
     labels = [cfg["label"] for cfg in metrics.values()]
     vals1, vals2 = [], []
 
@@ -239,63 +250,110 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 
     rows = []
 
-    # Sección 1: Stats tradicionales de rate
+    # 1. Tradicional Rate
     trad = _TRAD_BAT if role == "batter" else _TRAD_PIT
     for k, cfg in trad.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
         rows.append({"Categoría": "Tradicional (Rate)", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
-    # Sección 2: Stats de volumen / conteo
+    # 2. Volumen
     extra = _EXTRA_BAT if role == "batter" else _EXTRA_PIT
     for k in extra:
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, True, name1, name2)
         rows.append({"Categoría": "Volumen", "Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
-    # Sección 3: Statcast (valores reales, métricas esperadas)
+    # 3. Statcast Esperado
     statcast = _STATCAST_BAT if role == "batter" else _STATCAST_PIT
     for k, cfg in statcast.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
         rows.append({"Categoría": "Statcast Esperado", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
-    # Sección 4: Diferenciales de Suerte / Regresión
+    # 4. Diferenciales (Regresión)
     diffs = _DIFF_BAT if role == "batter" else _DIFF_PIT
     for k, cfg in diffs.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
-        rows.append({"Categoría": "Diferenciales (Regresión)", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        rows.append({"Categoría": "Diferenciales", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+
+    # 5. Defensa (Statcast OAA)
+    f1 = p1_data.get("fielding", [{}])[0] if p1_data.get("fielding") else {}
+    f2 = p2_data.get("fielding", [{}])[0] if p2_data.get("fielding") else {}
+    
+    oaa1, oaa2 = f1.get("OAA"), f2.get("OAA")
+    if oaa1 is not None or oaa2 is not None:
+        winner = _winner(oaa1, oaa2, True, name1, name2)
+        rows.append({"Categoría": "Defensa", "Stat": "OAA (Outs Above Avg)", name1: _fmt("OAA", oaa1), name2: _fmt("OAA", oaa2), "Ventaja": winner})
+
+    rp1, rp2 = f1.get("Runs Prevented"), f2.get("Runs Prevented")
+    if rp1 is not None or rp2 is not None:
+        winner = _winner(rp1, rp2, True, name1, name2)
+        rows.append({"Categoría": "Defensa", "Stat": "Runs Prevented", name1: _fmt("Runs Prevented", rp1), name2: _fmt("Runs Prevented", rp2), "Ventaja": winner})
+
+    # 6. Velocidad
+    s1 = p1_data.get("sprint", {})
+    s2 = p2_data.get("sprint", {})
+    sp1, sp2 = s1.get("sprint_speed"), s2.get("sprint_speed")
+    if sp1 is not None or sp2 is not None:
+        winner = _winner(sp1, sp2, True, name1, name2)
+        rows.append({"Categoría": "Velocidad", "Stat": "Sprint Speed", name1: _fmt("sprint_speed", sp1), name2: _fmt("sprint_speed", sp2), "Ventaja": winner})
+
+    hp1, hp2 = s1.get("hp_to_1b"), s2.get("hp_to_1b")
+    if hp1 is not None or hp2 is not None:
+        winner = _winner(hp1, hp2, False, name1, name2)
+        rows.append({"Categoría": "Velocidad", "Stat": "HP-1B", name1: _fmt("hp_to_1b", hp1), name2: _fmt("hp_to_1b", hp2), "Ventaja": winner})
 
     return pd.DataFrame(rows)
+
+
+def _fetch_headshot_image(url: str, size: tuple = (56, 56)) -> Image.Image | None:
+    """Descarga y recorta en formato circular el headshot oficial de MLB."""
+    if not url:
+        return None
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = resp.read()
+        raw_img = Image.open(io.BytesIO(data)).convert("RGBA")
+        raw_img = raw_img.resize(size, Image.Resampling.LANCZOS)
+        
+        mask = Image.new("L", size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0) + size, fill=255)
+        
+        circ = Image.new("RGBA", size, (0, 0, 0, 0))
+        circ.paste(raw_img, (0, 0), mask=mask)
+        return circ
+    except Exception:
+        return None
 
 
 def build_comparison_image(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str,
                             df_comp: pd.DataFrame) -> bytes:
-    """Genera PNG descargable de alta definición con soporte seguro de fuentes."""
-    from PIL import Image, ImageDraw, ImageFont
-
+    """Genera PNG descargable de alta definición con Headshots oficiales de MLB."""
     data_key = "batting" if role == "batter" else "pitching"
     d1s = p1_data.get(data_key, {})
     d2s = p2_data.get(data_key, {})
     team1 = d1s.get("Team", "—")
     team2 = d2s.get("Team", "—")
 
-    COL1, COL2, COL3 = 190, 160, 190
+    COL1, COL2, COL3 = 210, 160, 210
     W = COL1 + COL2 + COL3
-    ROW_H, HDR_H, FOOT_H = 28, 60, 26
+    ROW_H, HDR_H, FOOT_H = 28, 86, 30
     n = len(df_comp)
     H = HDR_H + n * ROW_H + FOOT_H
 
     BG    = (255, 255, 255)
-    ALT   = (244, 246, 250)
+    ALT   = (244, 247, 251)
     RED   = (220, 50, 60)
-    BLUE  = (60, 110, 145)
-    DARK  = (35, 40, 50)
-    GRAY  = (110, 115, 125)
+    BLUE  = (50, 105, 145)
+    DARK  = (30, 35, 45)
+    GRAY  = (105, 110, 120)
     RHDR  = (210, 45, 58)
-    BHDR  = (45, 95, 135)
+    BHDR  = (40, 95, 135)
     CHDR  = (225, 228, 236)
 
     def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
@@ -320,6 +378,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     fb = _load_font(13, bold=True)
     fn = _load_font(12)
     fs = _load_font(10)
+    ftitle = _load_font(14, bold=True)
 
     img  = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
@@ -332,16 +391,31 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
             tw, th = draw.textsize(str(text), font=font)
         draw.text((cx - tw // 2, cy - th // 2), str(text), font=font, fill=color)
 
-    # Header
+    # Header Backgrounds
     draw.rectangle([0, 0, COL1 - 1, HDR_H - 1], fill=RHDR)
     draw.rectangle([COL1, 0, COL1 + COL2 - 1, HDR_H - 1], fill=CHDR)
     draw.rectangle([COL1 + COL2, 0, W - 1, HDR_H - 1], fill=BHDR)
 
-    _tc(COL1 // 2,              20, name1, fb, (255, 255, 255))
-    _tc(COL1 // 2,              42, f"{team1} · {role.upper()}", fs, (240, 230, 230))
-    _tc(COL1 + COL2 // 2,       30, "VS", fb, GRAY)
-    _tc(COL1 + COL2 + COL3//2, 20, name2, fb, (255, 255, 255))
-    _tc(COL1 + COL2 + COL3//2, 42, f"{team2} · {role.upper()}", fs, (225, 235, 245))
+    # Descargar y pegar Headshots
+    headshot1 = _fetch_headshot_image(p1_data.get("headshot_url"), size=(56, 56))
+    if headshot1:
+        img.paste(headshot1, (12, (HDR_H - 56) // 2), mask=headshot1)
+        _tc(COL1 // 2 + 25, 30, name1, ftitle, (255, 255, 255))
+        _tc(COL1 // 2 + 25, 54, f"{team1} · {role.upper()}", fs, (245, 230, 230))
+    else:
+        _tc(COL1 // 2, 30, name1, ftitle, (255, 255, 255))
+        _tc(COL1 // 2, 54, f"{team1} · {role.upper()}", fs, (245, 230, 230))
+
+    _tc(COL1 + COL2 // 2, 42, "VS", ftitle, GRAY)
+
+    headshot2 = _fetch_headshot_image(p2_data.get("headshot_url"), size=(56, 56))
+    if headshot2:
+        img.paste(headshot2, (COL1 + COL2 + 12, (HDR_H - 56) // 2), mask=headshot2)
+        _tc(COL1 + COL2 + COL3 // 2 + 25, 30, name2, ftitle, (255, 255, 255))
+        _tc(COL1 + COL2 + COL3 // 2 + 25, 54, f"{team2} · {role.upper()}", fs, (225, 235, 245))
+    else:
+        _tc(COL1 + COL2 + COL3 // 2, 30, name2, ftitle, (255, 255, 255))
+        _tc(COL1 + COL2 + COL3 // 2, 54, f"{team2} · {role.upper()}", fs, (225, 235, 245))
 
     draw.line([(0, HDR_H), (W, HDR_H)], fill=(200, 205, 215), width=1)
 
@@ -363,7 +437,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
         _tc(COL1 + COL2 + COL3//2, mid, v2, fb if w == name2 else fn, c2)
 
     # Footer
-    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360 · MLB Sabermetrics", fs, (160, 165, 175))
+    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360 · Desarrollado por Jorge Leonardo Loreto", fs, (140, 145, 155))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -374,10 +448,10 @@ def build_sprint_row(p1_data: dict, p2_data: dict, name1: str, name2: str) -> pd
     s1 = p1_data.get("sprint", {})
     s2 = p2_data.get("sprint", {})
     rows = []
-    for key, label in [("sprint_speed", "Sprint Speed (ft/s)"), ("hp_to_1b", "HP→1B (seg)")]:
+    for key, label in [("sprint_speed", "Sprint Speed (ft/s)"), ("hp_to_1b", "HP-1B (seg)")]:
         rows.append({
             "Métrica": label,
-            name1: _fmt("V_EV" if key == "sprint_speed" else "sprint", s1.get(key, "N/D")),
-            name2: _fmt("V_EV" if key == "sprint_speed" else "sprint", s2.get(key, "N/D")),
+            name1: _fmt(key, s1.get(key, "N/D")),
+            name2: _fmt(key, s2.get(key, "N/D")),
         })
     return pd.DataFrame(rows)
