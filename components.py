@@ -364,7 +364,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
 
     COL1, COL2, COL3 = 210, 160, 210
     W = COL1 + COL2 + COL3
-    ROW_H, HDR_H, FOOT_H = 28, 86, 30
+    ROW_H, HDR_H, FOOT_H = 28, 86, 46
     n = len(df_comp)
     H = HDR_H + n * ROW_H + FOOT_H
 
@@ -466,8 +466,12 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
         _tc(COL1 + COL2 // 2,      mid, stat, fn, GRAY)
         _tc(COL1 + COL2 + COL3//2, mid, v2, fb if w == name2 else fn, c2)
 
-    # Footer
-    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360 · Desarrollado por Jorge Leonardo Loreto", fs, (140, 145, 155))
+    # Footer con créditos de fuentes de datos
+    foot_y0 = HDR_H + n * ROW_H
+    draw.rectangle([0, foot_y0, W - 1, H - 1], fill=(245, 247, 251))
+    draw.line([(0, foot_y0), (W, foot_y0)], fill=(215, 220, 230), width=1)
+    _tc(W // 2, foot_y0 + 15, "⚾ Vision 360 · Desarrollado por Jorge Leonardo Loreto · AI Data Scientist", fs, (100, 110, 125))
+    _tc(W // 2, foot_y0 + 31, "📊 Fuentes: MLB Stats API · Baseball Savant (Statcast) · FanGraphs", fs, (130, 140, 155))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
