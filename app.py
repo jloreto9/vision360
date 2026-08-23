@@ -165,14 +165,14 @@ else:
     st.info(f"**{p1}** ({role1.upper()}) y **{p2}** ({role2.upper()}) tienen roles distintos. Mostrando estadísticas individuales.")
     compare_role = "mixed"
 
-# ── Matchup Header Cards con Headshots oficiales de MLB ──────────────────────
+# ── Matchup Header Cards con Headshots oficiales de MLB y Logos de Franquicia ──
 c1, _, c2 = st.columns([5, 1, 5])
 
 with c1:
     col_img, col_info = st.columns([1, 3])
     with col_img:
         if d1.get("headshot_url"):
-            st.image(d1["headshot_url"], width=90)
+            st.image(d1["headshot_url"], width=95)
         else:
             st.markdown("<div style='font-size:3.5rem;'>👤</div>", unsafe_allow_html=True)
     with col_info:
@@ -182,18 +182,25 @@ with c1:
         pos1 = d1_stats.get("Pos", role1.upper())
         logo1 = d1.get("team_logo_url")
         
-        c_logo, c_meta = st.columns([1, 4])
-        with c_logo:
-            if logo1:
-                st.image(logo1, width=38)
-        with c_meta:
+        if logo1:
+            st.markdown(
+                f"<div style='display: flex; align-items: center; gap: 8px; margin-top: -4px; margin-bottom: 4px;'>"
+                f"<img src='{logo1}' width='32' height='32' style='object-fit: contain; vertical-align: middle;' />"
+                f"<span style='font-size: 1.05rem; font-weight: 600; color: #F1F5F9;'>{team1}</span>"
+                f"</div>"
+                f"<div style='font-size: 0.88rem; color: #94A3B8; margin-top: 2px;'>"
+                f"Posición / Rol: <b style='color: #E2E8F0;'>{pos1}</b>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        else:
             st.markdown(f"**Equipo:** `{team1}`  \n**Posición:** `{pos1}`")
 
 with c2:
     col_img, col_info = st.columns([1, 3])
     with col_img:
         if d2.get("headshot_url"):
-            st.image(d2["headshot_url"], width=90)
+            st.image(d2["headshot_url"], width=95)
         else:
             st.markdown("<div style='font-size:3.5rem;'>👤</div>", unsafe_allow_html=True)
     with col_info:
@@ -203,11 +210,18 @@ with c2:
         pos2 = d2_stats.get("Pos", role2.upper())
         logo2 = d2.get("team_logo_url")
         
-        c_logo, c_meta = st.columns([1, 4])
-        with c_logo:
-            if logo2:
-                st.image(logo2, width=38)
-        with c_meta:
+        if logo2:
+            st.markdown(
+                f"<div style='display: flex; align-items: center; gap: 8px; margin-top: -4px; margin-bottom: 4px;'>"
+                f"<img src='{logo2}' width='32' height='32' style='object-fit: contain; vertical-align: middle;' />"
+                f"<span style='font-size: 1.05rem; font-weight: 600; color: #F1F5F9;'>{team2}</span>"
+                f"</div>"
+                f"<div style='font-size: 0.88rem; color: #94A3B8; margin-top: 2px;'>"
+                f"Posición / Rol: <b style='color: #E2E8F0;'>{pos2}</b>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        else:
             st.markdown(f"**Equipo:** `{team2}`  \n**Posición:** `{pos2}`")
 
 st.divider()

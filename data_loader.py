@@ -31,52 +31,113 @@ PIT_COLS = [
 
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
-# ── Mapeo oficial de logos de franquicias MLB (Midfield CDN) ───────────────
-MLB_TEAMS = {
-    'ARI': 109, 'AZ': 109, 'DIAMONDBACKS': 109, 'ARIZONA': 109,
-    'ATL': 144, 'BRAVES': 144, 'ATLANTA': 144,
-    'BAL': 110, 'ORIOLES': 110, 'BALTIMORE': 110,
-    'BOS': 111, 'RED SOX': 111, 'BOSTON': 111,
-    'CHC': 112, 'CUBS': 112,
-    'CWS': 145, 'CHW': 145, 'WHITE SOX': 145,
-    'CIN': 113, 'REDS': 113, 'CINCINNATI': 113,
-    'CLE': 114, 'GUARDIANS': 114, 'CLEVELAND': 114,
-    'COL': 115, 'ROCKIES': 115, 'COLORADO': 115,
-    'DET': 116, 'TIGERS': 116, 'DETROIT': 116,
-    'HOU': 117, 'ASTROS': 117, 'HOUSTON': 117,
-    'KC': 118, 'KCR': 118, 'ROYALS': 118, 'KANSAS CITY': 118,
-    'LAA': 108, 'ANGELS': 108,
-    'LAD': 119, 'DODGERS': 119,
-    'MIA': 146, 'MARLINS': 146, 'MIAMI': 146,
-    'MIL': 158, 'BREWERS': 158, 'MILWAUKEE': 158,
-    'MIN': 142, 'TWINS': 142, 'MINNESOTA': 142,
-    'NYM': 121, 'METS': 121,
-    'NYY': 147, 'YANKEES': 147,
-    'OAK': 133, 'ATH': 133, 'ATHLETICS': 133, 'OAKLAND': 133,
-    'PHI': 143, 'PHILLIES': 143, 'PHILADELPHIA': 143,
-    'PIT': 134, 'PIRATES': 134, 'PITTSBURGH': 134,
-    'SD': 135, 'SDP': 135, 'PADRES': 135, 'SAN DIEGO': 135,
-    'SF': 137, 'SFG': 137, 'GIANTS': 137, 'SAN FRANCISCO': 137,
-    'SEA': 136, 'MARINERS': 136, 'SEATTLE': 136,
-    'STL': 138, 'CARDINALS': 138, 'ST. LOUIS': 138, 'ST LOUIS': 138,
-    'TB': 139, 'TBR': 139, 'RAYS': 139, 'TAMPA BAY': 139,
-    'TEX': 140, 'RANGERS': 140, 'TEXAS': 140,
-    'TOR': 141, 'BLUE JAYS': 141, 'TORONTO': 141,
-    'WSH': 120, 'WSN': 120, 'NATIONALS': 120, 'WASHINGTON': 120
+# ── Mapeo canónico oficial de franquicias MLB (Midfield CDN) ───────────────
+MLB_TEAMS_INFO = {
+    108: {"name": "Los Angeles Angels", "short": "Angels", "abbr": "LAA", "city": "Los Angeles"},
+    109: {"name": "Arizona Diamondbacks", "short": "Diamondbacks", "abbr": "ARI", "city": "Arizona"},
+    110: {"name": "Baltimore Orioles", "short": "Orioles", "abbr": "BAL", "city": "Baltimore"},
+    111: {"name": "Boston Red Sox", "short": "Red Sox", "abbr": "BOS", "city": "Boston"},
+    112: {"name": "Chicago Cubs", "short": "Cubs", "abbr": "CHC", "city": "Chicago"},
+    113: {"name": "Cincinnati Reds", "short": "Reds", "abbr": "CIN", "city": "Cincinnati"},
+    114: {"name": "Cleveland Guardians", "short": "Guardians", "abbr": "CLE", "city": "Cleveland"},
+    115: {"name": "Colorado Rockies", "short": "Rockies", "abbr": "COL", "city": "Colorado"},
+    116: {"name": "Detroit Tigers", "short": "Tigers", "abbr": "DET", "city": "Detroit"},
+    117: {"name": "Houston Astros", "short": "Astros", "abbr": "HOU", "city": "Houston"},
+    118: {"name": "Kansas City Royals", "short": "Royals", "abbr": "KC", "city": "Kansas City"},
+    119: {"name": "Los Angeles Dodgers", "short": "Dodgers", "abbr": "LAD", "city": "Los Angeles"},
+    120: {"name": "Washington Nationals", "short": "Nationals", "abbr": "WSH", "city": "Washington"},
+    121: {"name": "New York Mets", "short": "Mets", "abbr": "NYM", "city": "New York"},
+    133: {"name": "Athletics", "short": "Athletics", "abbr": "ATH", "city": "Oakland"},
+    134: {"name": "Pittsburgh Pirates", "short": "Pirates", "abbr": "PIT", "city": "Pittsburgh"},
+    135: {"name": "San Diego Padres", "short": "Padres", "abbr": "SD", "city": "San Diego"},
+    136: {"name": "Seattle Mariners", "short": "Mariners", "abbr": "SEA", "city": "Seattle"},
+    137: {"name": "San Francisco Giants", "short": "Giants", "abbr": "SF", "city": "San Francisco"},
+    138: {"name": "St. Louis Cardinals", "short": "Cardinals", "abbr": "STL", "city": "St. Louis"},
+    139: {"name": "Tampa Bay Rays", "short": "Rays", "abbr": "TB", "city": "Tampa Bay"},
+    140: {"name": "Texas Rangers", "short": "Rangers", "abbr": "TEX", "city": "Texas"},
+    141: {"name": "Toronto Blue Jays", "short": "Blue Jays", "abbr": "TOR", "city": "Toronto"},
+    142: {"name": "Minnesota Twins", "short": "Twins", "abbr": "MIN", "city": "Minnesota"},
+    143: {"name": "Philadelphia Phillies", "short": "Phillies", "abbr": "PHI", "city": "Philadelphia"},
+    144: {"name": "Atlanta Braves", "short": "Braves", "abbr": "ATL", "city": "Atlanta"},
+    145: {"name": "Chicago White Sox", "short": "White Sox", "abbr": "CWS", "city": "Chicago"},
+    146: {"name": "Miami Marlins", "short": "Marlins", "abbr": "MIA", "city": "Miami"},
+    147: {"name": "New York Yankees", "short": "Yankees", "abbr": "NYY", "city": "New York"},
+    158: {"name": "Milwaukee Brewers", "short": "Brewers", "abbr": "MIL", "city": "Milwaukee"},
 }
 
+_TEAM_LOOKUP = {}
+for _tid, _info in MLB_TEAMS_INFO.items():
+    _info["id"] = _tid
+    _info["logo"] = f"https://midfield.mlbstatic.com/v1/team/{_tid}/spots/72"
+    _TEAM_LOOKUP[_info["name"].upper()] = _info
+    _TEAM_LOOKUP[_info["short"].upper()] = _info
+    _TEAM_LOOKUP[_info["abbr"].upper()] = _info
 
-def get_team_logo_url(team_str: str) -> str | None:
+# Aliases comunes
+_TEAM_LOOKUP["D-BACKS"] = MLB_TEAMS_INFO[109]
+_TEAM_LOOKUP["AZ"] = MLB_TEAMS_INFO[109]
+_TEAM_LOOKUP["CHW"] = MLB_TEAMS_INFO[145]
+_TEAM_LOOKUP["KCR"] = MLB_TEAMS_INFO[118]
+_TEAM_LOOKUP["SDP"] = MLB_TEAMS_INFO[135]
+_TEAM_LOOKUP["SFG"] = MLB_TEAMS_INFO[137]
+_TEAM_LOOKUP["TBR"] = MLB_TEAMS_INFO[139]
+_TEAM_LOOKUP["WSN"] = MLB_TEAMS_INFO[120]
+
+# Mapeo de ciudades con franquicia única
+_SINGLE_CITIES = {
+    "ATLANTA": 144, "BALTIMORE": 110, "BOSTON": 111, "CINCINNATI": 113,
+    "CLEVELAND": 114, "COLORADO": 115, "DETROIT": 116, "HOUSTON": 117,
+    "KANSAS CITY": 118, "MIAMI": 146, "MILWAUKEE": 158, "MINNESOTA": 142,
+    "PHILADELPHIA": 143, "PITTSBURGH": 134, "SAN DIEGO": 135, "SAN FRANCISCO": 137,
+    "SEATTLE": 136, "ST. LOUIS": 138, "ST LOUIS": 138, "TAMPA BAY": 139,
+    "TEXAS": 140, "TORONTO": 141, "WASHINGTON": 120, "ARIZONA": 109, "OAKLAND": 133
+}
+for _city, _tid in _SINGLE_CITIES.items():
+    _TEAM_LOOKUP[_city] = MLB_TEAMS_INFO[_tid]
+
+
+def resolve_team_info(player_id=None, raw_team_str=None, sprint_df=None, field_df=None) -> dict:
+    """Resuelve de forma determinística y sin ambigüedad el equipo oficial y su logo MLB."""
+    # Prioridad 1: Por player_id en sprint_df (donde team_id es 100% exacto)
+    if player_id:
+        try:
+            pid = int(player_id)
+            if sprint_df is not None and not sprint_df.empty and "player_id" in sprint_df.columns:
+                sm = sprint_df[pd.to_numeric(sprint_df["player_id"], errors="coerce") == pid]
+                if not sm.empty and pd.notna(sm.iloc[0].get("team_id")):
+                    tid = int(sm.iloc[0]["team_id"])
+                    if tid in MLB_TEAMS_INFO:
+                        return MLB_TEAMS_INFO[tid]
+            # Prioridad 2: Por player_id en field_df
+            if field_df is not None and not field_df.empty and "player_id" in field_df.columns:
+                fm = field_df[pd.to_numeric(field_df["player_id"], errors="coerce") == pid]
+                if not fm.empty and pd.notna(fm.iloc[0].get("display_team_name")):
+                    dname = str(fm.iloc[0]["display_team_name"]).strip().upper()
+                    if dname in _TEAM_LOOKUP:
+                        return _TEAM_LOOKUP[dname]
+        except (ValueError, TypeError):
+            pass
+
+    # Prioridad 3: Por string si no es una ciudad ambigua (como New York, Chicago, Los Angeles)
+    if raw_team_str:
+        s = str(raw_team_str).strip().upper()
+        if s not in ("NEW YORK", "CHICAGO", "LOS ANGELES") and s in _TEAM_LOOKUP:
+            return _TEAM_LOOKUP[s]
+
+    clean_raw = str(raw_team_str or "—")
+    return {
+        "id": None,
+        "name": clean_raw,
+        "short": clean_raw,
+        "abbr": clean_raw[:3].upper() if clean_raw != "—" else "—",
+        "logo": None,
+    }
+
+
+def get_team_logo_url(team_str: str, player_id=None) -> str | None:
     """Devuelve la URL del logo oficial en alta resolución del equipo MLB (transparent PNG)."""
-    if not team_str or not isinstance(team_str, str):
-        return None
-    key = team_str.strip().upper()
-    if key in MLB_TEAMS:
-        return f"https://midfield.mlbstatic.com/v1/team/{MLB_TEAMS[key]}/spots/72"
-    for k, tid in MLB_TEAMS.items():
-        if k in key or key in k:
-            return f"https://midfield.mlbstatic.com/v1/team/{tid}/spots/72"
-    return None
+    info = resolve_team_info(player_id=player_id, raw_team_str=team_str)
+    return info.get("logo")
 
 # expected_statistics endpoint: stats "x" (xBA, xSLG, xwOBA, xERA)
 _BAT_EXP_RENAME = [
@@ -387,26 +448,47 @@ def _build_pitching(brp: pd.DataFrame, scp: pd.DataFrame, exp_df: pd.DataFrame =
     return df[cols].copy()
 
 
+def enrich_df_teams(df: pd.DataFrame) -> pd.DataFrame:
+    """Reemplaza nombres ambiguos de ciudades con nombres canónicos de franquicias MLB."""
+    if df.empty or "Team" not in df.columns:
+        return df
+    sprint_df = load_sprint()
+    field_df = load_fielding()
+    out = df.copy()
+    new_teams = []
+    for _, row in out.iterrows():
+        pid = row.get("mlbID")
+        raw_tm = row.get("Team")
+        tinfo = resolve_team_info(player_id=pid, raw_team_str=raw_tm, sprint_df=sprint_df, field_df=field_df)
+        new_teams.append(tinfo["name"])
+    out["Team"] = new_teams
+    return out
+
+
 # ── Funciones cacheadas de Streamlit ────────────────────────────────────────
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_batting():
     csv = _load_csv("batting")
     if csv is not None:
-        return _add_empirical_percentiles(csv, "batter")
-    br = _safe_fg(pb.batting_stats_bref, SEASON)
-    sc = _safe_fg(pb.statcast_batter_percentile_ranks, SEASON)
-    return _build_batting(br, sc)
+        df = _add_empirical_percentiles(csv, "batter")
+    else:
+        br = _safe_fg(pb.batting_stats_bref, SEASON)
+        sc = _safe_fg(pb.statcast_batter_percentile_ranks, SEASON)
+        df = _build_batting(br, sc)
+    return enrich_df_teams(df)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_pitching():
     csv = _load_csv("pitching")
     if csv is not None:
-        return _add_empirical_percentiles(csv, "pitcher")
-    brp = _safe_fg(pb.pitching_stats_bref, SEASON)
-    scp = _safe_fg(pb.statcast_pitcher_percentile_ranks, SEASON)
-    return _build_pitching(brp, scp)
+        df = _add_empirical_percentiles(csv, "pitcher")
+    else:
+        brp = _safe_fg(pb.pitching_stats_bref, SEASON)
+        scp = _safe_fg(pb.statcast_pitcher_percentile_ranks, SEASON)
+        df = _build_pitching(brp, scp)
+    return enrich_df_teams(df)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -659,15 +741,24 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
     else:
         result["sprint"] = {}
 
-    # Extraer equipo y logo oficial de MLB
-    team_name = (
+    # Extraer y resolver equipo oficial de MLB sin ambigüedad
+    raw_tm = (
         result.get("batting", {}).get("Team") or
         result.get("pitching", {}).get("Team") or
         (result.get("fielding", [{}])[0].get("Equipo") if result.get("fielding") else None) or
         result.get("sprint", {}).get("team") or
         "—"
     )
-    result["team"] = team_name
-    result["team_logo_url"] = get_team_logo_url(team_name)
+    tinfo = resolve_team_info(
+        player_id=result.get("mlbID"),
+        raw_team_str=raw_tm,
+        sprint_df=sprint_df,
+        field_df=field_df
+    )
+    result["team"] = tinfo["name"]
+    result["team_short"] = tinfo["short"]
+    result["team_abbr"] = tinfo["abbr"]
+    result["team_logo_url"] = tinfo["logo"]
+    result["team_info"] = tinfo
 
     return result

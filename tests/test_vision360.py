@@ -180,14 +180,36 @@ class TestVision360(unittest.TestCase):
         bat_df = load_batting()
         pit_df = load_pitching()
 
-    def test_team_logos_resolution(self):
-        """Valida la resolución de URLs de logos oficiales para franquicias MLB."""
-        from data_loader import get_team_logo_url
-        test_teams = ["NYY", "Nationals", "WSH", "Mets", "LAD", "Dodgers", "Braves", "TOR", "BOS", "HOU"]
-        for team_name in test_teams:
-            logo_url = get_team_logo_url(team_name)
-            self.assertIsNotNone(logo_url, f"El equipo {team_name} debe tener una URL de logo válida")
-            self.assertIn("https://midfield.mlbstatic.com/v1/team/", logo_url)
+    def test_team_disambiguation_multi_franchise_cities(self):
+        """Valida que ciudades con 2 equipos (NY, LA, Chicago) resuelvan la franquicia exacta."""
+        bat_df = load_batting()
+        pit_df = load_pitching()
+        field_df = load_fielding()
+        sprint_df = load_sprint()
+        bat_exp = load_batting_expected()
+        pit_exp = load_pitching_expected()
+        bat_ev = load_batting_exitvelo()
+        pit_ev = load_pitching_exitvelo()
+
+        # Juan Soto debe ser Mets (ID 121), NO Yankees
+        soto = get_player_data("Juan Soto", bat_df, pit_df, field_df, sprint_df, bat_exp, pit_exp, bat_ev, pit_ev)
+        self.assertEqual(soto["team"], "New York Mets")
+        self.assertIn("/121/", soto["team_logo_url"])
+
+        # Aaron Judge debe ser Yankees (ID 147), NO Mets
+        judge = get_player_data("Aaron Judge", bat_df, pit_df, field_df, sprint_df, bat_exp, pit_exp, bat_ev, pit_ev)
+        self.assertEqual(judge["team"], "New York Yankees")
+        self.assertIn("/147/", judge["team_logo_url"])
+
+        # Shohei Ohtani debe ser Dodgers (ID 119), NO Angels
+        shohei = get_player_data("Shohei Ohtani", bat_df, pit_df, field_df, sprint_df, bat_exp, pit_exp, bat_ev, pit_ev)
+        self.assertEqual(shohei["team"], "Los Angeles Dodgers")
+        self.assertIn("/119/", shohei["team_logo_url"])
+
+        # Mike Trout debe ser Angels (ID 108), NO Dodgers
+        trout = get_player_data("Mike Trout", bat_df, pit_df, field_df, sprint_df, bat_exp, pit_exp, bat_ev, pit_ev)
+        self.assertEqual(trout["team"], "Los Angeles Angels")
+        self.assertIn("/108/", trout["team_logo_url"])
 
 
 if __name__ == "__main__":
