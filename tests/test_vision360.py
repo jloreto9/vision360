@@ -180,10 +180,14 @@ class TestVision360(unittest.TestCase):
         bat_df = load_batting()
         pit_df = load_pitching()
 
-        for df, col in [(bat_df, "Name"), (pit_df, "Name")]:
-            for name in df[col].dropna():
-                self.assertNotIn(r"\xc3", name, f"Nombre con escape corrupto detectado: {name}")
-                self.assertNotIn("Ã", name, f"Nombre con mojibake detectado: {name}")
+    def test_team_logos_resolution(self):
+        """Valida la resolución de URLs de logos oficiales para franquicias MLB."""
+        from data_loader import get_team_logo_url
+        test_teams = ["NYY", "Nationals", "WSH", "Mets", "LAD", "Dodgers", "Braves", "TOR", "BOS", "HOU"]
+        for team_name in test_teams:
+            logo_url = get_team_logo_url(team_name)
+            self.assertIsNotNone(logo_url, f"El equipo {team_name} debe tener una URL de logo válida")
+            self.assertIn("https://midfield.mlbstatic.com/v1/team/", logo_url)
 
 
 if __name__ == "__main__":

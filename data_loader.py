@@ -31,6 +31,53 @@ PIT_COLS = [
 
 SPRINT_COLS = ["last_name, first_name", "sprint_speed", "hp_to_1b", "competitive_runs"]
 
+# ── Mapeo oficial de logos de franquicias MLB (Midfield CDN) ───────────────
+MLB_TEAMS = {
+    'ARI': 109, 'AZ': 109, 'DIAMONDBACKS': 109, 'ARIZONA': 109,
+    'ATL': 144, 'BRAVES': 144, 'ATLANTA': 144,
+    'BAL': 110, 'ORIOLES': 110, 'BALTIMORE': 110,
+    'BOS': 111, 'RED SOX': 111, 'BOSTON': 111,
+    'CHC': 112, 'CUBS': 112,
+    'CWS': 145, 'CHW': 145, 'WHITE SOX': 145,
+    'CIN': 113, 'REDS': 113, 'CINCINNATI': 113,
+    'CLE': 114, 'GUARDIANS': 114, 'CLEVELAND': 114,
+    'COL': 115, 'ROCKIES': 115, 'COLORADO': 115,
+    'DET': 116, 'TIGERS': 116, 'DETROIT': 116,
+    'HOU': 117, 'ASTROS': 117, 'HOUSTON': 117,
+    'KC': 118, 'KCR': 118, 'ROYALS': 118, 'KANSAS CITY': 118,
+    'LAA': 108, 'ANGELS': 108,
+    'LAD': 119, 'DODGERS': 119,
+    'MIA': 146, 'MARLINS': 146, 'MIAMI': 146,
+    'MIL': 158, 'BREWERS': 158, 'MILWAUKEE': 158,
+    'MIN': 142, 'TWINS': 142, 'MINNESOTA': 142,
+    'NYM': 121, 'METS': 121,
+    'NYY': 147, 'YANKEES': 147,
+    'OAK': 133, 'ATH': 133, 'ATHLETICS': 133, 'OAKLAND': 133,
+    'PHI': 143, 'PHILLIES': 143, 'PHILADELPHIA': 143,
+    'PIT': 134, 'PIRATES': 134, 'PITTSBURGH': 134,
+    'SD': 135, 'SDP': 135, 'PADRES': 135, 'SAN DIEGO': 135,
+    'SF': 137, 'SFG': 137, 'GIANTS': 137, 'SAN FRANCISCO': 137,
+    'SEA': 136, 'MARINERS': 136, 'SEATTLE': 136,
+    'STL': 138, 'CARDINALS': 138, 'ST. LOUIS': 138, 'ST LOUIS': 138,
+    'TB': 139, 'TBR': 139, 'RAYS': 139, 'TAMPA BAY': 139,
+    'TEX': 140, 'RANGERS': 140, 'TEXAS': 140,
+    'TOR': 141, 'BLUE JAYS': 141, 'TORONTO': 141,
+    'WSH': 120, 'WSN': 120, 'NATIONALS': 120, 'WASHINGTON': 120
+}
+
+
+def get_team_logo_url(team_str: str) -> str | None:
+    """Devuelve la URL del logo oficial en alta resolución del equipo MLB (transparent PNG)."""
+    if not team_str or not isinstance(team_str, str):
+        return None
+    key = team_str.strip().upper()
+    if key in MLB_TEAMS:
+        return f"https://midfield.mlbstatic.com/v1/team/{MLB_TEAMS[key]}/spots/72"
+    for k, tid in MLB_TEAMS.items():
+        if k in key or key in k:
+            return f"https://midfield.mlbstatic.com/v1/team/{tid}/spots/72"
+    return None
+
 # expected_statistics endpoint: stats "x" (xBA, xSLG, xwOBA, xERA)
 _BAT_EXP_RENAME = [
     ("est_ba",   "V_xBA"),
@@ -611,5 +658,16 @@ def get_player_data(name: str, bat_df, pit_df, field_df, sprint_df,
         result["sprint"] = srow.iloc[0].to_dict() if not srow.empty else {}
     else:
         result["sprint"] = {}
+
+    # Extraer equipo y logo oficial de MLB
+    team_name = (
+        result.get("batting", {}).get("Team") or
+        result.get("pitching", {}).get("Team") or
+        (result.get("fielding", [{}])[0].get("Equipo") if result.get("fielding") else None) or
+        result.get("sprint", {}).get("team") or
+        "—"
+    )
+    result["team"] = team_name
+    result["team_logo_url"] = get_team_logo_url(team_name)
 
     return result

@@ -178,9 +178,16 @@ with c1:
     with col_info:
         st.markdown(f"### <span class='badge-p1'>🔴 {p1}</span>", unsafe_allow_html=True)
         d1_stats = d1.get("batting", {}) or d1.get("pitching", {})
-        team1 = d1_stats.get("Team", "—")
+        team1 = d1.get("team") or d1_stats.get("Team", "—")
         pos1 = d1_stats.get("Pos", role1.upper())
-        st.markdown(f"**Equipo:** `{team1}` · **Posición/Rol:** `{pos1}`")
+        logo1 = d1.get("team_logo_url")
+        
+        c_logo, c_meta = st.columns([1, 4])
+        with c_logo:
+            if logo1:
+                st.image(logo1, width=38)
+        with c_meta:
+            st.markdown(f"**Equipo:** `{team1}`  \n**Posición:** `{pos1}`")
 
 with c2:
     col_img, col_info = st.columns([1, 3])
@@ -192,9 +199,16 @@ with c2:
     with col_info:
         st.markdown(f"### <span class='badge-p2'>🔵 {p2}</span>", unsafe_allow_html=True)
         d2_stats = d2.get("batting", {}) or d2.get("pitching", {})
-        team2 = d2_stats.get("Team", "—")
+        team2 = d2.get("team") or d2_stats.get("Team", "—")
         pos2 = d2_stats.get("Pos", role2.upper())
-        st.markdown(f"**Equipo:** `{team2}` · **Posición/Rol:** `{pos2}`")
+        logo2 = d2.get("team_logo_url")
+        
+        c_logo, c_meta = st.columns([1, 4])
+        with c_logo:
+            if logo2:
+                st.image(logo2, width=38)
+        with c_meta:
+            st.markdown(f"**Equipo:** `{team2}`  \n**Posición:** `{pos2}`")
 
 st.divider()
 

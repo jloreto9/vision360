@@ -330,15 +330,29 @@ def _fetch_headshot_image(url: str, size: tuple = (56, 56)) -> Image.Image | Non
         return None
 
 
+def _fetch_raw_image(url: str, size: tuple = (24, 24)) -> Image.Image | None:
+    """Descarga y redimensiona una imagen con transparencia (ej. logo de equipo oficial)."""
+    if not url:
+        return None
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = resp.read()
+        raw_img = Image.open(io.BytesIO(data)).convert("RGBA")
+        return raw_img.resize(size, Image.Resampling.LANCZOS)
+    except Exception:
+        return None
+
+
 def build_comparison_image(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str,
                             df_comp: pd.DataFrame) -> bytes:
-    """Genera PNG descargable de alta definición con Headshots oficiales de MLB."""
+    """Genera PNG descargable de alta definición con Headshots oficiales y logos de equipo MLB."""
     data_key = "batting" if role == "batter" else "pitching"
     d1s = p1_data.get(data_key, {})
     d2s = p2_data.get(data_key, {})
-    team1 = d1s.get("Team", "—")
-    team2 = d2s.get("Team", "—")
+    team1 = p1_data.get("team") or d1s.get("Team", "—")
+    team2 = p2_data.get("team") or d2s.get("Team", "—")
 
     COL1, COL2, COL3 = 210, 160, 210
     W = COL1 + COL2 + COL3
@@ -396,26 +410,34 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     draw.rectangle([COL1, 0, COL1 + COL2 - 1, HDR_H - 1], fill=CHDR)
     draw.rectangle([COL1 + COL2, 0, W - 1, HDR_H - 1], fill=BHDR)
 
-    # Descargar y pegar Headshots
+    # Descargar y pegar Headshots y Logos de Equipo
     headshot1 = _fetch_headshot_image(p1_data.get("headshot_url"), size=(56, 56))
     if headshot1:
-        img.paste(headshot1, (12, (HDR_H - 56) // 2), mask=headshot1)
-        _tc(COL1 // 2 + 25, 30, name1, ftitle, (255, 255, 255))
-        _tc(COL1 // 2 + 25, 54, f"{team1} · {role.upper()}", fs, (245, 230, 230))
+        img.paste(headshot1, (10, (HDR_H - 56) // 2), mask=headshot1)
+        _tc(COL1 // 2 + 20, 30, name1, ftitle, (255, 255, 255))
+        _tc(COL1 // 2 + 20, 54, f"{team1} · {role.upper()}", fs, (245, 230, 230))
     else:
         _tc(COL1 // 2, 30, name1, ftitle, (255, 255, 255))
         _tc(COL1 // 2, 54, f"{team1} · {role.upper()}", fs, (245, 230, 230))
+
+    tlogo1 = _fetch_raw_image(p1_data.get("team_logo_url"), size=(24, 24))
+    if tlogo1:
+        img.paste(tlogo1, (COL1 - 30, 8), mask=tlogo1)
 
     _tc(COL1 + COL2 // 2, 42, "VS", ftitle, GRAY)
 
     headshot2 = _fetch_headshot_image(p2_data.get("headshot_url"), size=(56, 56))
     if headshot2:
-        img.paste(headshot2, (COL1 + COL2 + 12, (HDR_H - 56) // 2), mask=headshot2)
-        _tc(COL1 + COL2 + COL3 // 2 + 25, 30, name2, ftitle, (255, 255, 255))
-        _tc(COL1 + COL2 + COL3 // 2 + 25, 54, f"{team2} · {role.upper()}", fs, (225, 235, 245))
+        img.paste(headshot2, (COL1 + COL2 + 10, (HDR_H - 56) // 2), mask=headshot2)
+        _tc(COL1 + COL2 + COL3 // 2 + 20, 30, name2, ftitle, (255, 255, 255))
+        _tc(COL1 + COL2 + COL3 // 2 + 20, 54, f"{team2} · {role.upper()}", fs, (225, 235, 245))
     else:
         _tc(COL1 + COL2 + COL3 // 2, 30, name2, ftitle, (255, 255, 255))
         _tc(COL1 + COL2 + COL3 // 2, 54, f"{team2} · {role.upper()}", fs, (225, 235, 245))
+
+    tlogo2 = _fetch_raw_image(p2_data.get("team_logo_url"), size=(24, 24))
+    if tlogo2:
+        img.paste(tlogo2, (W - 30, 8), mask=tlogo2)
 
     draw.line([(0, HDR_H), (W, HDR_H)], fill=(200, 205, 215), width=1)
 
