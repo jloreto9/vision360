@@ -2,8 +2,8 @@
 
 ## Propósito del proyecto
 
-Aplicación Streamlit de comparación head-to-head entre jugadores de MLB con visión 360°.
-Datos vía `pybaseball` (FanGraphs + Baseball Savant/Statcast). Uso personal. Temporada activa = 2025.
+Aplicación Streamlit de comparación *head-to-head* entre jugadores de MLB con visión integral 360° (bateo, pitcheo, Statcast, defensa, velocidad y calidad de contacto).
+Datos vía `pybaseball` (Baseball Reference + Baseball Savant / Statcast). Uso personal. Temporada activa = `SEASON = 2026`.
 
 ---
 
@@ -11,17 +11,18 @@ Datos vía `pybaseball` (FanGraphs + Baseball Savant/Statcast). Uso personal. Te
 
 ```
 vision360/
-├── app.py              # Entrada principal Streamlit — UI, tabs, routing
-├── data_loader.py      # Carga, caché y normalización de datos
-├── components.py       # Visualizaciones: radar, tablas, gráficas
+├── app.py              # Entrada principal Streamlit — UI, filtros (rol/equipo), headshots MLB, tabs
+├── data_loader.py      # Carga, caché, normalización de nombres, percentiles empíricos, Statcast y defensa
+├── components.py       # Visualizaciones: radar polar, tablas comparativas, métricas diferenciales, tarjeta PNG
+├── refresh_data.py     # Ingesta completa y generación de CSVs en data/
+├── data/               # CSVs cacheados locales (batting, pitching, fielding, sprint, expected)
 ├── requirements.txt
 ├── .streamlit/
 │   └── config.toml     # Tema oscuro, layout wide
 └── CLAUDE.md
 ```
 
-**Regla:** no agregar archivos fuera de esta estructura sin justificación explícita.
-Si se necesita un módulo nuevo (e.g., `lvbp_loader.py`), documentarlo aquí antes de crearlo.
+**Regla:** Mantener una arquitectura minimalista y directa. No agregar archivos fuera de esta estructura sin justificación explícita.
 
 ---
 
@@ -34,34 +35,34 @@ Si se necesita un módulo nuevo (e.g., `lvbp_loader.py`), documentarlo aquí ant
 | Visualización | `plotly>=5.20.0` | Solo Plotly — no matplotlib, no altair |
 | Datos tabulares | `pandas>=2.0.0` | |
 | Numérico | `numpy>=1.26.0` | |
-
-**No agregar** librerías nuevas sin actualizar `requirements.txt` y este documento.
+| Exportación de imagen | `Pillow>=10.0.0` | Generación de Matchup Card en PNG |
 
 ---
 
 ## Convenciones de código
 
 ### General
-- Python 3.11+
-- Nombres de variables en `snake_case`
-- Funciones de carga siempre decoradas con `@st.cache_data(ttl=3600)`
-- Nunca hardcodear temporada en más de un lugar — usar la constante `SEASON = 2025` en `data_loader.py`
-- Todos los DataFrames que se muestran al usuario usan `hide_index=True`
+- Python 3.10+
+- Nombres de variables y funciones en `snake_case`
+- Funciones de carga decoradas con `@st.cache_data(ttl=3600)`
+- Temporada centralizada en la constante `SEASON = 2026` en `data_loader.py`
+- DataFrames mostrados al usuario con `hide_index=True`
 
-### Manejo de errores
-- Toda llamada a `pybaseball` va dentro de `_safe_fg()` o equivalente con try/except
-- Si un jugador no tiene datos en una dimensión, mostrar `"N/D"` — nunca crashear
-- Valores NaN en métricas del radar se normalizan a 50 (neutro) — no imputar con 0
+### Manejo de errores y resiliencia
+- Toda llamada a `pybaseball` va dentro de `_safe_fg()` o bloques `try/except`
+- Si un jugador no tiene datos en una métrica, formatear como `"N/D"` — nunca crashear
+- Valores `NaN` en percentiles de radar se imputan con percentil empírico local (`_add_empirical_percentiles`) o `50` neutro
+- Normalización avanzada de nombres con `normalize_name_key()` para empatar sufijos (`Jr.`, `II`, `III`), acentos y formatos `Last, First` vs `First Last`
 
-### Detección de rol
+### Detección de rol y fotos oficiales
 - `role = detect_role(name, bat_df, pit_df)` → `"batter"`, `"pitcher"`, o `"two-way"`
-- Two-way = jugador presente en ambas tablas FanGraphs simultáneamente
-- Threshold mínimo de IP para calificar como pitcher: actualmente sin límite explícito (FanGraphs `qual=20` lo filtra). Si se ajusta, documentar aquí.
+- Preservación de `mlbID` para enlace con headshots oficiales en alta definición:
+  `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current/w_213,q_auto:best/v1/people/{mlbID}/headshot/67/current`
 
 ### Normalización de métricas (radar)
-- Escala: 0–100 por percentil dentro del rango configurado en `RADAR_METRICS_BAT` / `RADAR_METRICS_PIT`
-- `higher_is_better=False` invierte la escala (K%, ERA-, BB/9, etc.)
-- **No cambiar los rangos de escala sin revisar distribución histórica de la métrica**
+- Escala: 0–100 percentil dentro de la distribución Statcast
+- Ejes radiales etiquetados con `cfg["label"]` legible (`xwOBA`, `Barrel%`, `Exit Velo`, `Hard Hit%`, `Whiff%`, `K%`, `BB%`)
+- `higher_is_better=False` invierte la escala adecuadamente
 
 ---
 
@@ -71,29 +72,9 @@ Si se necesita un módulo nuevo (e.g., `lvbp_loader.py`), documentarlo aquí ant
 |---|---|
 | Jugador 1 | `#E63946` (rojo) |
 | Jugador 2 | `#457B9D` (azul acero) |
-| Fondo de gráficas | `rgba(0,0,0,0)` (transparente) |
-| Fuente en gráficas | `white` |
-
-Estos colores son fijos. No cambiarlos sin actualizar todos los componentes simultáneamente.
-
----
-
-## Fuentes de datos y limitaciones conocidas
-
-### FanGraphs vía pybaseball
-- `batting_stats(SEASON, SEASON, qual=50)` — mínimo 50 PA para aparecer
-- `pitching_stats(SEASON, SEASON, qual=20)` — mínimo 20 IP
-- `fielding_stats(SEASON, SEASON, qual=50)` — incluye UZR/150 y DRS, **no OAA**
-- Lag típico: 24–48h respecto a juegos reales
-
-### Statcast vía pybaseball
-- `statcast_sprint_speed(SEASON)` — nombres en formato `"apellido, nombre"` → se normaliza en `get_player_data()`
-- OAA disponible vía `statcast_fielding()` — **pendiente de integrar** (ver Roadmap)
-
-### Regla de nombres
-- Los nombres de jugadores en FanGraphs y Statcast **no siempre coinciden**
-- El matching de sprint speed usa comparación `.lower()` — es case-insensitive pero sensible a acentos y apodos
-- Si hay mismatch, registrarlo como issue conocido antes de parchear
+| Fondo de radar | `rgba(15, 23, 42, 0.40)` (dark navy glass) |
+| Grid y líneas | `rgba(255, 255, 255, 0.15)` |
+| Texto en gráficas | `#FFFFFF` |
 
 ---
 
@@ -101,43 +82,11 @@ Estos colores son fijos. No cambiarlos sin actualizar todos los componentes simu
 
 | Tab | Contenido | Archivo responsable |
 |---|---|---|
-| 🕸️ Radar 360 | Radar chart normalizado, solo si ambos jugadores comparten rol | `components.py → build_radar()` |
-| 📊 Stats Comparados | Tabla con delta coloreado y columna "Ventaja" | `components.py → build_comparison_table()` |
-| 🧤 Defensa | UZR/150, DRS por posición | `components.py` + `data_loader.py` |
-| 💨 Velocidad | Sprint speed, HP→1B, barra comparativa | `components.py → build_sprint_row()` |
-
----
-
-## Roadmap de extensiones (planificadas)
-
-### v1.1 — Statcast avanzado + OAA
-- Integrar `statcast_fielding()` para OAA real
-- Agregar métricas Statcast de bateo: `xBA`, `xSLG`, `xwOBA`, `Hard Hit%`, `Barrel%`, `Exit Velocity avg`
-- Nuevo tab: **🎯 Statcast** separado del radar actual
-
-### v1.2 — Comparación multi-jugador (3+)
-- Cambiar `selectbox` a `multiselect` con máximo configurable (sugerido: 4)
-- Radar con trazos múltiples (ya soportado por Plotly `Scatterpolar`)
-- Tabla comparativa con N columnas dinámicas
-- Lógica de "ventaja" cambia a ranking 1–N por métrica
-
-### v1.3 — Deploy Streamlit Cloud
-- Agregar `.streamlit/secrets.toml` para variables de entorno si se integra Supabase
-- `requirements.txt` debe ser reproducible con versiones fijas (`==` no `>=`) para el deploy
-- Cacheo en disco de pybaseball debe deshabilitarse o redirigirse en Cloud (verificar path de caché)
-- Agregar `README.md` con badge de Streamlit Cloud antes del deploy
-
----
-
-## Lo que Claude Code NO debe hacer en este repo
-
-- ❌ No usar `matplotlib` ni `seaborn` — solo Plotly
-- ❌ No modificar `SEASON` inline en funciones — siempre importar la constante
-- ❌ No añadir autenticación de usuarios (app personal, sin login)
-- ❌ No crear endpoints API (FastAPI, Flask, etc.) — la app es solo Streamlit
-- ❌ No cambiar el esquema de `get_player_data()` sin actualizar todos los consumidores (`app.py`, `components.py`)
-- ❌ No imputar NaN con 0 en métricas de rendimiento — usar 50 (neutro) en radar, `"N/D"` en tablas
-- ❌ No agregar datos de LVBP/Supabase en esta versión — está reservado para un módulo separado futuro
+| 🕸️ Radar 360 | Radar polar interactivo normalizado (0–100) con alto contraste | `components.py → build_radar()` |
+| 📊 Stats Comparados | Tabla tabular con deltas, conteo de ventajas y exportación a PNG | `components.py → build_comparison_table()` & `build_comparison_image()` |
+| ⚡ Statcast & Regresión | Desglose de métricas esperadas ($xBA, xSLG, xwOBA, xERA$) y diferenciales de suerte | `app.py` + `data_loader.py` |
+| 🧤 Defensa | Registros defensivos por posición (G, GS, Inn, PO, A, E, DP, Fld%) | `data_loader.py → load_fielding()` |
+| 💨 Velocidad | Sprint speed (ft/s) y tiempo Home-to-1B con barra comparativa | `components.py → build_sprint_row()` |
 
 ---
 
@@ -147,16 +96,9 @@ Estos colores son fijos. No cambiarlos sin actualizar todos los componentes simu
 # Correr la app localmente
 streamlit run app.py
 
-# Instalar dependencias
-pip install -r requirements.txt
+# Actualizar y pre-cargar todos los CSVs en data/
+python refresh_data.py
 
-# Limpiar caché de pybaseball si los datos están desactualizados
+# Limpiar caché de pybaseball
 python -c "import pybaseball as pb; pb.cache.purge()"
-
-# Ver versión de dependencias instaladas
-pip freeze | grep -E "streamlit|pybaseball|plotly|pandas"
 ```
-
----
-
-*Última actualización: Mayo 2025 · Autor: Jorge Loreto (jloreto9)*

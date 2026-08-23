@@ -6,26 +6,57 @@ from data_loader import (
     load_batting_exitvelo, load_pitching_exitvelo,
     get_player_data, detect_role, SEASON
 )
-from components import build_radar, build_comparison_table, build_comparison_image, build_sprint_row
+from components import (
+    build_radar, build_comparison_table, build_comparison_image, build_sprint_row
+)
 
-# ── Config ──────────────────────────────────────────────────────────────────
+# ── Configuración de Página ──────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Vision 360 — Baseball Comparison",
+    page_title="Vision 360 — Baseball Player Comparison",
     page_icon="⚾",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 1.5rem; }
-    h1 { font-size: 2rem; }
-    .advantage-p1 { color: #E63946; font-weight: bold; }
-    .advantage-p2 { color: #457B9D; font-weight: bold; }
+    .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+    .player-card {
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        backdrop-filter: blur(8px);
+    }
+    .badge-p1 {
+        background-color: #E63946;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+    .badge-p2 {
+        background-color: #457B9D;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+    .matchup-kpi {
+        text-align: center;
+        padding: 8px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ── Carga de datos ───────────────────────────────────────────────────────────
-with st.spinner("Cargando datos Baseball Reference / Statcast..."):
+with st.spinner("Cargando datos MLB (Baseball Reference + Statcast)..."):
     bat_df     = load_batting()
     pit_df     = load_pitching()
     field_df   = load_fielding()
@@ -41,32 +72,75 @@ all_players  = sorted(set(all_batters + all_pitchers))
 
 if not all_players:
     st.error(
-        "No se pudieron cargar jugadores de FanGraphs. "
-        "Posibles causas: FanGraphs no es accesible desde este servidor, "
-        "o aun no hay suficientes PA/IP acumulados en la temporada. "
-        "Revisa los logs de la app (Manage app → Logs) para el detalle del error."
+        "No se pudieron cargar jugadores de FanGraphs / Baseball Reference. "
+        "Verifica la conexión a internet o ejecuta `python refresh_data.py` localmente."
     )
     st.stop()
 
+# ── Sidebar: Filtros de Selección ───────────────────────────────────────────
+st.sidebar.image("https://midfield.mlbstatic.com/v1/league/103/spots/72", width=70)
+st.sidebar.title("⚾ Vision 360")
+st.sidebar.caption(f"Temporada MLB {SEASON} · FanGraphs & Baseball Savant")
+
+st.sidebar.markdown("### 🔍 Filtros de Búsqueda")
+role_filter = st.sidebar.selectbox(
+    "Filtrar jugadores por rol:",
+    ["Todos", "Solo Bateadores", "Solo Lanzadores"],
+    index=0
+)
+
+# Obtener lista de equipos únicos disponibles
+all_teams = set()
+if not bat_df.empty and "Team" in bat_df.columns:
+    all_teams.update(bat_df["Team"].dropna().unique())
+if not pit_df.empty and "Team" in pit_df.columns:
+    all_teams.update(pit_df["Team"].dropna().unique())
+teams_list = ["Todos los equipos"] + sorted(list(all_teams))
+
+team_filter = st.sidebar.selectbox("Filtrar por equipo:", teams_list, index=0)
+
+# Aplicar filtros a la lista de opciones
+filtered_players = all_players.copy()
+
+if role_filter == "Solo Bateadores":
+    filtered_players = [p for p in filtered_players if p in all_batters]
+elif role_filter == "Solo Lanzadores":
+    filtered_players = [p for p in filtered_players if p in all_pitchers]
+
+if team_filter != "Todos los equipos":
+    p_teams = set()
+    if not bat_df.empty and "Team" in bat_df.columns:
+        p_teams.update(bat_df[bat_df["Team"] == team_filter]["Name"].tolist())
+    if not pit_df.empty and "Team" in pit_df.columns:
+        p_teams.update(pit_df[pit_df["Team"] == team_filter]["Name"].tolist())
+    filtered_players = [p for p in filtered_players if p in p_teams]
+
+if not filtered_players:
+    st.sidebar.warning("No hay jugadores que coincidan con los filtros seleccionados.")
+    filtered_players = all_players
+
 # ── Header ───────────────────────────────────────────────────────────────────
-st.title("⚾ Vision 360 — Player Comparison")
-st.caption(f"Temporada MLB {SEASON} · Datos: FanGraphs + Baseball Savant")
+st.title("⚾ Vision 360 — MLB Player Comparison")
+st.caption(f"Comparación head-to-head integral · Temporada {SEASON} · Statcast Percentiles 0–100")
 
 # ── Selección de jugadores ───────────────────────────────────────────────────
 col1, col_vs, col2 = st.columns([5, 1, 5])
 
 with col1:
-    p1 = st.selectbox("Jugador 1", all_players, index=0, key="p1")
+    p1 = st.selectbox("🔴 Jugador 1 (Rojo)", filtered_players, index=0, key="p1")
 
 with col_vs:
-    st.markdown("<br><br><h3 style='text-align:center'>VS</h3>", unsafe_allow_html=True)
+    st.markdown("<br><h2 style='text-align:center; color:#94A3B8;'>VS</h2>", unsafe_allow_html=True)
 
 with col2:
-    default_idx = min(1, len(all_players) - 1)
-    p2 = st.selectbox("Jugador 2", all_players, index=default_idx, key="p2")
+    default_idx = min(1, len(filtered_players) - 1)
+    # Evitar que el default sea el mismo si hay más de 1 jugador
+    if len(filtered_players) > 1 and filtered_players[default_idx] == p1:
+        default_idx = 1 if len(filtered_players) > 1 else 0
+    p2 = st.selectbox("🔵 Jugador 2 (Azul)", filtered_players, index=default_idx, key="p2")
 
 if p1 == p2:
-    st.warning("Selecciona dos jugadores distintos.")
+    st.warning("Selecciona dos jugadores distintos para realizar la comparación.")
     st.stop()
 
 # ── Obtener datos ─────────────────────────────────────────────────────────────
@@ -85,26 +159,45 @@ elif role1 == "two-way" or role2 == "two-way":
         ["batter", "pitcher"], horizontal=True
     )
 else:
-    st.info(f"**{p1}** es {role1} y **{p2}** es {role2}. "
-            "Mostrando dimensiones disponibles para cada uno.")
+    st.info(f"**{p1}** ({role1.upper()}) y **{p2}** ({role2.upper()}) tienen roles distintos. Mostrando estadísticas individuales.")
     compare_role = "mixed"
 
-# ── Badges de rol ─────────────────────────────────────────────────────────────
+# ── Matchup Header Cards con Headshots oficiales de MLB ──────────────────────
 c1, _, c2 = st.columns([5, 1, 5])
+
 with c1:
-    st.markdown(f"### 🔴 {p1}")
-    d1_stats = d1.get("batting", {}) or d1.get("pitching", {})
-    st.caption(f"{d1_stats.get('Team','—')} · {role1.upper()}")
+    col_img, col_info = st.columns([1, 3])
+    with col_img:
+        if d1.get("headshot_url"):
+            st.image(d1["headshot_url"], width=90)
+        else:
+            st.markdown("<div style='font-size:3.5rem;'>👤</div>", unsafe_allow_html=True)
+    with col_info:
+        st.markdown(f"### <span class='badge-p1'>🔴 {p1}</span>", unsafe_allow_html=True)
+        d1_stats = d1.get("batting", {}) or d1.get("pitching", {})
+        team1 = d1_stats.get("Team", "—")
+        pos1 = d1_stats.get("Pos", role1.upper())
+        st.markdown(f"**Equipo:** `{team1}` · **Posición/Rol:** `{pos1}`")
+
 with c2:
-    st.markdown(f"### 🔵 {p2}")
-    d2_stats = d2.get("batting", {}) or d2.get("pitching", {})
-    st.caption(f"{d2_stats.get('Team','—')} · {role2.upper()}")
+    col_img, col_info = st.columns([1, 3])
+    with col_img:
+        if d2.get("headshot_url"):
+            st.image(d2["headshot_url"], width=90)
+        else:
+            st.markdown("<div style='font-size:3.5rem;'>👤</div>", unsafe_allow_html=True)
+    with col_info:
+        st.markdown(f"### <span class='badge-p2'>🔵 {p2}</span>", unsafe_allow_html=True)
+        d2_stats = d2.get("batting", {}) or d2.get("pitching", {})
+        team2 = d2_stats.get("Team", "—")
+        pos2 = d2_stats.get("Pos", role2.upper())
+        st.markdown(f"**Equipo:** `{team2}` · **Posición/Rol:** `{pos2}`")
 
 st.divider()
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_radar, tab_stats, tab_field, tab_speed = st.tabs([
-    "🕸️ Radar 360", "📊 Stats Comparados", "🧤 Defensa", "💨 Velocidad"
+# ── Tabs de Análisis ──────────────────────────────────────────────────────────
+tab_radar, tab_stats, tab_diff, tab_field, tab_speed = st.tabs([
+    "🕸️ Radar 360", "📊 Stats Comparados", "⚡ Statcast & Regresión", "🧤 Defensa", "💨 Velocidad"
 ])
 
 # ── TAB 1: Radar ──────────────────────────────────────────────────────────────
@@ -112,22 +205,37 @@ with tab_radar:
     if compare_role not in ("mixed",):
         fig = build_radar(d1, d2, p1, p2, compare_role)
         st.plotly_chart(fig, use_container_width=True)
-        st.caption("Valores normalizados a percentil 0–100 dentro del rango histórico de la métrica.")
+        st.caption(
+            "💡 **Escala Sabermétrica:** Los valores están normalizados al rango percentil 0–100 de Statcast. "
+            "Un valor de 90+ representa rendimiento de élite (top 10% de la MLB)."
+        )
     else:
-        st.info("Radar disponible solo cuando ambos jugadores comparten rol. "
-                "Revisa el tab de Stats Comparados.")
+        st.info("El Radar 360 se activa cuando ambos jugadores comparten rol (Bateador vs Bateador o Lanzador vs Lanzador).")
 
-# ── TAB 2: Stats ──────────────────────────────────────────────────────────────
+# ── TAB 2: Stats Comparados ───────────────────────────────────────────────────
 with tab_stats:
     if compare_role != "mixed":
         df_comp = build_comparison_table(d1, d2, p1, p2, compare_role)
 
+        # Conteo de ventajas
+        p1_wins = (df_comp["Ventaja"] == p1).sum()
+        p2_wins = (df_comp["Ventaja"] == p2).sum()
+        ties = (df_comp["Ventaja"] == "Igual").sum()
+
+        k1, k2, k3 = st.columns(3)
+        with k1:
+            st.metric(f"Ventajas {p1}", f"{p1_wins} métricas", delta=f"{p1_wins - p2_wins:+d}" if p1_wins != p2_wins else None)
+        with k2:
+            st.metric("Empates / Similares", f"{ties} métricas")
+        with k3:
+            st.metric(f"Ventajas {p2}", f"{p2_wins} métricas", delta=f"{p2_wins - p1_wins:+d}" if p2_wins != p1_wins else None)
+
         def highlight_winner(row):
-            styles = ["", "", "", ""]
+            styles = ["", "", "", "", ""]
             if row["Ventaja"] == p1:
-                styles[1] = "color: #E63946; font-weight: bold"
+                styles[2] = "color: #EF4444; font-weight: bold; background-color: rgba(239, 68, 68, 0.1);"
             elif row["Ventaja"] == p2:
-                styles[2] = "color: #457B9D; font-weight: bold"
+                styles[3] = "color: #38BDF8; font-weight: bold; background-color: rgba(56, 189, 248, 0.1);"
             return styles
 
         st.dataframe(
@@ -138,57 +246,98 @@ with tab_stats:
 
         img_bytes = build_comparison_image(d1, d2, p1, p2, compare_role, df_comp)
         st.download_button(
-            label="⬇ Descargar imagen",
+            label="⬇ Descargar Tarjeta Comparativa (PNG)",
             data=img_bytes,
             file_name=f"{p1.replace(' ', '_')}_vs_{p2.replace(' ', '_')}.png",
             mime="image/png",
         )
     else:
-        # Mostrar cada uno por separado
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown(f"**{p1} — {role1}**")
+            st.markdown(f"**{p1} — {role1.upper()}**")
             role_key = "batting" if role1 == "batter" else "pitching"
             st.json(d1.get(role_key, {}))
         with c2:
-            st.markdown(f"**{p2} — {role2}**")
+            st.markdown(f"**{p2} — {role2.upper()}**")
             role_key = "batting" if role2 == "batter" else "pitching"
             st.json(d2.get(role_key, {}))
 
-# ── TAB 3: Defensa ────────────────────────────────────────────────────────────
+# ── TAB 3: Statcast & Regresión ───────────────────────────────────────────────
+with tab_diff:
+    st.markdown("### ⚡ Calidad de Contacto y Métricas Esperadas (Statcast)")
+    st.caption("Diferenciales entre resultados observados y rendimiento esperado según Statcast (velocidad de salida y ángulo de lanzamiento).")
+
+    if compare_role == "batter":
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            st.markdown(f"#### 🔴 {p1}")
+            b1 = d1.get("batting", {})
+            st.markdown(f"- **AVG:** `{b1.get('AVG', 'N/D')}` vs **xBA:** `{b1.get('V_xBA', 'N/D')}` *(diff: {b1.get('V_diff_BA', 'N/D')})*")
+            st.markdown(f"- **SLG:** `{b1.get('SLG', 'N/D')}` vs **xSLG:** `{b1.get('V_xSLG', 'N/D')}` *(diff: {b1.get('V_diff_SLG', 'N/D')})*")
+            st.markdown(f"- **OBP:** `{b1.get('OBP', 'N/D')}` vs **xwOBA:** `{b1.get('V_xwOBA', 'N/D')}` *(diff: {b1.get('V_diff_wOBA', 'N/D')})*")
+            st.markdown(f"- **Exit Velocity:** `{b1.get('V_EV', 'N/D')}` · **Barrel%:** `{b1.get('V_Barrel', 'N/D')}` · **HardHit%:** `{b1.get('V_HardHit', 'N/D')}`")
+        with col_b2:
+            st.markdown(f"#### 🔵 {p2}")
+            b2 = d2.get("batting", {})
+            st.markdown(f"- **AVG:** `{b2.get('AVG', 'N/D')}` vs **xBA:** `{b2.get('V_xBA', 'N/D')}` *(diff: {b2.get('V_diff_BA', 'N/D')})*")
+            st.markdown(f"- **SLG:** `{b2.get('SLG', 'N/D')}` vs **xSLG:** `{b2.get('V_xSLG', 'N/D')}` *(diff: {b2.get('V_diff_SLG', 'N/D')})*")
+            st.markdown(f"- **OBP:** `{b2.get('OBP', 'N/D')}` vs **xwOBA:** `{b2.get('V_xwOBA', 'N/D')}` *(diff: {b2.get('V_diff_wOBA', 'N/D')})*")
+            st.markdown(f"- **Exit Velocity:** `{b2.get('V_EV', 'N/D')}` · **Barrel%:** `{b2.get('V_Barrel', 'N/D')}` · **HardHit%:** `{b2.get('V_HardHit', 'N/D')}`")
+    elif compare_role == "pitcher":
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.markdown(f"#### 🔴 {p1}")
+            pit1 = d1.get("pitching", {})
+            st.markdown(f"- **ERA:** `{pit1.get('ERA', 'N/D')}` vs **xERA:** `{pit1.get('V_xERA', 'N/D')}` *(diff: {pit1.get('V_diff_ERA', 'N/D')})*")
+            st.markdown(f"- **xwOBA (permitido):** `{pit1.get('V_xwOBA', 'N/D')}` · **Exit Velo (permitida):** `{pit1.get('V_EV', 'N/D')}`")
+        with col_p2:
+            st.markdown(f"#### 🔵 {p2}")
+            pit2 = d2.get("pitching", {})
+            st.markdown(f"- **ERA:** `{pit2.get('ERA', 'N/D')}` vs **xERA:** `{pit2.get('V_xERA', 'N/D')}` *(diff: {pit2.get('V_diff_ERA', 'N/D')})*")
+            st.markdown(f"- **xwOBA (permitido):** `{pit2.get('V_xwOBA', 'N/D')}` · **Exit Velo (permitida):** `{pit2.get('V_EV', 'N/D')}`")
+    else:
+        st.info("Selecciona jugadores con el mismo rol para comparar sus métricas de Statcast y regresión.")
+
+# ── TAB 4: Defensa ────────────────────────────────────────────────────────────
 with tab_field:
     c1, c2 = st.columns(2)
     for col, player, data in [(c1, p1, d1), (c2, p2, d2)]:
         with col:
-            st.markdown(f"**{player}**")
+            st.markdown(f"### **{player}**")
             frows = data.get("fielding", [])
             if frows:
                 st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
             else:
-                st.caption("Sin datos defensivos disponibles.")
+                st.caption("Sin registros defensivos directos en la base de datos.")
 
-# ── TAB 4: Sprint Speed ───────────────────────────────────────────────────────
+# ── TAB 5: Sprint Speed ───────────────────────────────────────────────────────
 with tab_speed:
     df_sprint = build_sprint_row(d1, d2, p1, p2)
     st.dataframe(df_sprint, use_container_width=True, hide_index=True)
 
-    # Gauge visual simple
     s1 = d1.get("sprint", {}).get("sprint_speed")
     s2 = d2.get("sprint", {}).get("sprint_speed")
-    if s1 and s2:
-        import plotly.graph_objects as go
-        fig_speed = go.Figure()
-        fig_speed.add_trace(go.Bar(
-            x=[p1, p2], y=[s1, s2],
-            marker_color=["#E63946", "#457B9D"],
-            text=[f"{s1} ft/s", f"{s2} ft/s"],
-            textposition="outside"
-        ))
-        fig_speed.update_layout(
-            title="Sprint Speed (ft/s) — promedio temporada",
-            yaxis=dict(range=[25, 32]),
-            height=350,
-            paper_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(fig_speed, use_container_width=True)
-        st.caption("Promedio MLB ≈ 27.0 ft/s · Elite: 30+ ft/s")
+    if s1 is not None and s2 is not None and str(s1) != "nan" and str(s2) != "nan":
+        try:
+            s1_f, s2_f = float(s1), float(s2)
+            import plotly.graph_objects as go
+            fig_speed = go.Figure()
+            fig_speed.add_trace(go.Bar(
+                x=[p1, p2], y=[s1_f, s2_f],
+                marker_color=["#E63946", "#457B9D"],
+                text=[f"{s1_f:.1f} ft/s", f"{s2_f:.1f} ft/s"],
+                textposition="outside"
+            ))
+            fig_speed.update_layout(
+                title="Sprint Speed (ft/s) — Statcast",
+                yaxis=dict(range=[24, 32], gridcolor="rgba(255,255,255,0.1)"),
+                xaxis=dict(tickfont=dict(color="#FFFFFF")),
+                height=350,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#FFFFFF"),
+            )
+            st.plotly_chart(fig_speed, use_container_width=True)
+            st.caption("Promedio MLB ≈ 27.0 ft/s · Nivel Élite: 30+ ft/s")
+        except (ValueError, TypeError):
+            st.caption("Datos de Sprint Speed no numéricos.")

@@ -38,36 +38,48 @@ _TRAD_BAT = {
     "SLG":   {"label": "SLG",   "higher_is_better": True},
     "OPS":   {"label": "OPS",   "higher_is_better": True},
     "ISO":   {"label": "ISO",   "higher_is_better": True},
-    "BABIP": {"label": "BABIP", "higher_is_better": True},
     "BB%":   {"label": "BB%",   "higher_is_better": True},
     "K%":    {"label": "K%",    "higher_is_better": False},
 }
 
 # Stats tradicionales de rate (pitching)
 _TRAD_PIT = {
-    "ERA":  {"label": "ERA",  "higher_is_better": False},
-    "WHIP": {"label": "WHIP", "higher_is_better": False},
-    "K/9":  {"label": "K/9",  "higher_is_better": True},
-    "BB/9": {"label": "BB/9", "higher_is_better": False},
-    "HR/9": {"label": "HR/9", "higher_is_better": False},
-    "BABIP":{"label": "BABIP","higher_is_better": False},
+    "ERA":   {"label": "ERA",   "higher_is_better": False},
+    "WHIP":  {"label": "WHIP",  "higher_is_better": False},
+    "K/9":   {"label": "K/9",   "higher_is_better": True},
+    "BB/9":  {"label": "BB/9",  "higher_is_better": False},
+    "HR/9":  {"label": "HR/9",  "higher_is_better": False},
+    "BABIP": {"label": "BABIP", "higher_is_better": False},
 }
 
-# Valores reales Statcast (calidad de contacto) — sin percentiles
+# Valores reales Statcast (calidad de contacto y métricas esperadas)
 _STATCAST_BAT = {
-    "V_xwOBA":   {"label": "xwOBA",     "higher_is_better": True},
-    "V_EV":      {"label": "Exit Velo", "higher_is_better": True},
-    "V_Barrel":  {"label": "Barrel%",   "higher_is_better": True},
-    "V_HardHit": {"label": "Hard Hit%", "higher_is_better": True},
-    "V_Whiff":   {"label": "Whiff%",    "higher_is_better": False},
+    "V_xBA":     {"label": "xBA",        "higher_is_better": True},
+    "V_xSLG":    {"label": "xSLG",       "higher_is_better": True},
+    "V_xwOBA":   {"label": "xwOBA",      "higher_is_better": True},
+    "V_EV":      {"label": "Exit Velo",  "higher_is_better": True},
+    "V_Barrel":  {"label": "Barrel%",    "higher_is_better": True},
+    "V_HardHit": {"label": "Hard Hit%",  "higher_is_better": True},
+    "V_Whiff":   {"label": "Whiff%",     "higher_is_better": False},
 }
+
+_DIFF_BAT = {
+    "V_diff_BA":   {"label": "diff (BA - xBA)",     "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
+    "V_diff_SLG":  {"label": "diff (SLG - xSLG)",   "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
+    "V_diff_wOBA": {"label": "diff (OBP - xwOBA)",  "higher_is_better": False, "note": "Negativo = mala suerte (Buy-Low)"},
+}
+
 _STATCAST_PIT = {
-    "V_xERA":    {"label": "xERA",        "higher_is_better": False},
-    "V_xwOBA":   {"label": "xwOBA (perm)","higher_is_better": False},
-    "V_EV":      {"label": "EV (perm)",   "higher_is_better": False},
-    "V_Barrel":  {"label": "Barrel% (perm)","higher_is_better": False},
-    "V_HardHit": {"label": "Hard Hit% (perm)","higher_is_better": False},
-    "V_Whiff":   {"label": "Whiff%",      "higher_is_better": True},
+    "V_xERA":    {"label": "xERA",            "higher_is_better": False},
+    "V_xwOBA":   {"label": "xwOBA (rec)",     "higher_is_better": False},
+    "V_EV":      {"label": "EV (rec)",        "higher_is_better": False},
+    "V_Barrel":  {"label": "Barrel% (rec)",   "higher_is_better": False},
+    "V_HardHit": {"label": "Hard Hit% (rec)", "higher_is_better": False},
+    "V_Whiff":   {"label": "Whiff%",          "higher_is_better": True},
+}
+
+_DIFF_PIT = {
+    "V_diff_ERA":  {"label": "diff (ERA - xERA)", "higher_is_better": True, "note": "Positivo = ERA inflada / mala suerte"},
 }
 
 # ── Formateo de valores ─────────────────────────────────────────────────────
@@ -80,19 +92,25 @@ _PCT_STATS   = {"BB%", "K%"}
 
 def _fmt(stat: str, value) -> str:
     try:
-        if value is None or (isinstance(value, float) and np.isnan(value)):
+        if value is None or (isinstance(value, float) and np.isnan(value)) or str(value).strip() in ("", "nan", "<NA>"):
             return "N/D"
         if stat.startswith("P_"):
             return str(int(round(float(value))))
+        if stat.startswith("V_diff_"):
+            v = float(value)
+            sign = "+" if v > 0 else ""
+            if "ERA" in stat:
+                return f"{sign}{v:.2f}"
+            return f"{sign}{v:.3f}"
         if stat.startswith("V_"):
             v = float(value)
-            if stat == "V_xwOBA":
+            if stat in {"V_xwOBA", "V_xBA", "V_xSLG"}:
                 s = f"{v:.3f}"
                 return s[1:] if s.startswith("0.") else s
             if stat in {"V_xERA"}:
                 return f"{v:.2f}"
             if stat in {"V_EV", "V_FBVelo"}:
-                return f"{v:.1f}"
+                return f"{v:.1f} mph"
             return f"{v:.1f}%"
         if stat in _INT_STATS:
             return str(int(round(float(value))))
@@ -115,7 +133,7 @@ def _fmt(stat: str, value) -> str:
 def _normalize(value, low, high, higher_is_better):
     if pd.isna(value):
         return 50
-    clipped = max(low, min(high, value))
+    clipped = max(low, min(high, float(value)))
     pct = (clipped - low) / (high - low) * 100
     return pct if higher_is_better else 100 - pct
 
@@ -124,7 +142,12 @@ def _winner(v1, v2, higher_is_better: bool, name1: str, name2: str) -> str:
     if v1 is None or v2 is None:
         return "—"
     try:
-        return name1 if (float(v1) > float(v2)) == higher_is_better else name2
+        f1, f2 = float(v1), float(v2)
+        if np.isnan(f1) or np.isnan(f2):
+            return "—"
+        if abs(f1 - f2) < 1e-5:
+            return "Igual"
+        return name1 if (f1 > f2) == higher_is_better else name2
     except (ValueError, TypeError):
         return "—"
 
@@ -144,7 +167,8 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
-    labels = list(metrics.keys())
+    # Usar etiquetas amigables en los ejes del radar
+    labels = [cfg["label"] for cfg in metrics.values()]
     vals1, vals2 = [], []
 
     for m, cfg in metrics.items():
@@ -166,43 +190,43 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
             theta=labels,
             fill="toself",
             name=name,
-            line=dict(color=color, width=2),
-            fillcolor=_hex_to_rgba(color, 0.25),
+            line=dict(color=color, width=2.5),
+            fillcolor=_hex_to_rgba(color, 0.28),
         ))
 
     fig.update_layout(
         polar=dict(
-            bgcolor="rgba(0,0,0,0.03)",
+            bgcolor="rgba(15, 23, 42, 0.4)",
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
                 tickvals=[25, 50, 75, 100],
-                tickfont=dict(color="rgba(60,60,60,0.70)", size=9),
-                gridcolor="rgba(0,0,0,0.15)",
-                linecolor="rgba(0,0,0,0.15)",
+                tickfont=dict(color="rgba(226, 232, 240, 0.8)", size=10),
+                gridcolor="rgba(255, 255, 255, 0.15)",
+                linecolor="rgba(255, 255, 255, 0.20)",
             ),
             angularaxis=dict(
-                tickfont=dict(color="#222222", size=12),
-                gridcolor="rgba(0,0,0,0.12)",
-                linecolor="rgba(0,0,0,0.20)",
+                tickfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+                gridcolor="rgba(255, 255, 255, 0.15)",
+                linecolor="rgba(255, 255, 255, 0.25)",
             ),
         ),
         showlegend=True,
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.18,
+            y=-0.16,
             xanchor="center",
             x=0.5,
-            font=dict(color="#222222", size=13),
-            bgcolor="rgba(255,255,255,0.85)",
-            bordercolor="rgba(0,0,0,0.20)",
+            font=dict(color="#FFFFFF", size=14),
+            bgcolor="rgba(15, 23, 42, 0.85)",
+            bordercolor="rgba(255, 255, 255, 0.20)",
             borderwidth=1,
         ),
-        height=530,
+        height=540,
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#222222"),
-        margin=dict(t=20, b=80, l=40, r=40),
+        font=dict(color="#FFFFFF"),
+        margin=dict(t=25, b=85, l=45, r=45),
     )
     return fig
 
@@ -215,26 +239,33 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 
     rows = []
 
-    # Sección 1: stats de rate tradicionales
+    # Sección 1: Stats tradicionales de rate
     trad = _TRAD_BAT if role == "batter" else _TRAD_PIT
     for k, cfg in trad.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
-        rows.append({"Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        rows.append({"Categoría": "Tradicional (Rate)", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
-    # Sección 2: stats de volumen / conteo
+    # Sección 2: Stats de volumen / conteo
     extra = _EXTRA_BAT if role == "batter" else _EXTRA_PIT
     for k in extra:
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, True, name1, name2)
-        rows.append({"Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        rows.append({"Categoría": "Volumen", "Stat": k, name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
-    # Sección 3: Statcast (valores reales, sin percentiles)
+    # Sección 3: Statcast (valores reales, métricas esperadas)
     statcast = _STATCAST_BAT if role == "batter" else _STATCAST_PIT
     for k, cfg in statcast.items():
         v1, v2 = d1.get(k), d2.get(k)
         winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
-        rows.append({"Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+        rows.append({"Categoría": "Statcast Esperado", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
+
+    # Sección 4: Diferenciales de Suerte / Regresión
+    diffs = _DIFF_BAT if role == "batter" else _DIFF_PIT
+    for k, cfg in diffs.items():
+        v1, v2 = d1.get(k), d2.get(k)
+        winner = _winner(v1, v2, cfg["higher_is_better"], name1, name2)
+        rows.append({"Categoría": "Diferenciales (Regresión)", "Stat": cfg["label"], name1: _fmt(k, v1), name2: _fmt(k, v2), "Ventaja": winner})
 
     return pd.DataFrame(rows)
 
@@ -242,7 +273,7 @@ def build_comparison_table(p1_data: dict, p2_data: dict,
 def build_comparison_image(p1_data: dict, p2_data: dict,
                             name1: str, name2: str, role: str,
                             df_comp: pd.DataFrame) -> bytes:
-    """Genera PNG descargable — fondo blanco, texto oscuro."""
+    """Genera PNG descargable de alta definición con soporte seguro de fuentes."""
     from PIL import Image, ImageDraw, ImageFont
 
     data_key = "batting" if role == "batter" else "pitching"
@@ -251,22 +282,21 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     team1 = d1s.get("Team", "—")
     team2 = d2s.get("Team", "—")
 
-    COL1, COL2, COL3 = 170, 140, 170
+    COL1, COL2, COL3 = 190, 160, 190
     W = COL1 + COL2 + COL3
-    ROW_H, HDR_H, FOOT_H = 26, 54, 22
+    ROW_H, HDR_H, FOOT_H = 28, 60, 26
     n = len(df_comp)
     H = HDR_H + n * ROW_H + FOOT_H
 
-    # Paleta fondo blanco
     BG    = (255, 255, 255)
-    ALT   = (243, 245, 249)
+    ALT   = (244, 246, 250)
     RED   = (220, 50, 60)
     BLUE  = (60, 110, 145)
-    DARK  = (40, 40, 45)        # texto loser
-    GRAY  = (120, 120, 130)     # texto stat name
-    RHDR  = (195, 40, 52)       # fondo header p1
-    BHDR  = (48, 100, 138)      # fondo header p2
-    CHDR  = (230, 232, 240)     # fondo header central
+    DARK  = (35, 40, 50)
+    GRAY  = (110, 115, 125)
+    RHDR  = (210, 45, 58)
+    BHDR  = (45, 95, 135)
+    CHDR  = (225, 228, 236)
 
     def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
         suffix = "-Bold" if bold else ""
@@ -274,6 +304,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
             f"/usr/share/fonts/truetype/dejavu/DejaVuSans{suffix}.ttf",
             f"/usr/share/fonts/truetype/liberation/LiberationSans{'-Bold' if bold else '-Regular'}.ttf",
             f"C:/Windows/Fonts/{'arialbd' if bold else 'arial'}.ttf",
+            f"C:/Windows/Fonts/{'segoeuib' if bold else 'segoeui'}.ttf",
         ]
         for p in paths:
             if os.path.exists(p):
@@ -295,24 +326,24 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
 
     def _tc(cx, cy, text, font, color):
         try:
-            bb = draw.textbbox((0, 0), text, font=font)
+            bb = draw.textbbox((0, 0), str(text), font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]
         except AttributeError:
-            tw, th = draw.textsize(text, font=font)
-        draw.text((cx - tw // 2, cy - th // 2), text, font=font, fill=color)
+            tw, th = draw.textsize(str(text), font=font)
+        draw.text((cx - tw // 2, cy - th // 2), str(text), font=font, fill=color)
 
     # Header
     draw.rectangle([0, 0, COL1 - 1, HDR_H - 1], fill=RHDR)
     draw.rectangle([COL1, 0, COL1 + COL2 - 1, HDR_H - 1], fill=CHDR)
     draw.rectangle([COL1 + COL2, 0, W - 1, HDR_H - 1], fill=BHDR)
 
-    _tc(COL1 // 2,              18, name1, fb, (255, 255, 255))
-    _tc(COL1 // 2,              37, f"{team1} · {role.upper()}", fs, (230, 220, 220))
-    _tc(COL1 + COL2 // 2,       27, "VS", fb, GRAY)
-    _tc(COL1 + COL2 + COL3//2, 18, name2, fb, (255, 255, 255))
-    _tc(COL1 + COL2 + COL3//2, 37, f"{team2} · {role.upper()}", fs, (215, 225, 235))
+    _tc(COL1 // 2,              20, name1, fb, (255, 255, 255))
+    _tc(COL1 // 2,              42, f"{team1} · {role.upper()}", fs, (240, 230, 230))
+    _tc(COL1 + COL2 // 2,       30, "VS", fb, GRAY)
+    _tc(COL1 + COL2 + COL3//2, 20, name2, fb, (255, 255, 255))
+    _tc(COL1 + COL2 + COL3//2, 42, f"{team2} · {role.upper()}", fs, (225, 235, 245))
 
-    draw.line([(0, HDR_H), (W, HDR_H)], fill=(200, 202, 210), width=1)
+    draw.line([(0, HDR_H), (W, HDR_H)], fill=(200, 205, 215), width=1)
 
     # Rows
     stats   = df_comp["Stat"].tolist()
@@ -323,7 +354,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
     for i, (stat, v1, v2, w) in enumerate(zip(stats, vals1, vals2, winners)):
         y0 = HDR_H + i * ROW_H
         draw.rectangle([0, y0, W - 1, y0 + ROW_H - 1], fill=ALT if i % 2 == 0 else BG)
-        draw.line([(0, y0 + ROW_H - 1), (W, y0 + ROW_H - 1)], fill=(220, 222, 228), width=1)
+        draw.line([(0, y0 + ROW_H - 1), (W, y0 + ROW_H - 1)], fill=(225, 228, 235), width=1)
         mid = y0 + ROW_H // 2
         c1 = RED  if w == name1 else DARK
         c2 = BLUE if w == name2 else DARK
@@ -332,7 +363,7 @@ def build_comparison_image(p1_data: dict, p2_data: dict,
         _tc(COL1 + COL2 + COL3//2, mid, v2, fb if w == name2 else fn, c2)
 
     # Footer
-    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360", fs, (170, 170, 180))
+    _tc(W // 2, HDR_H + n * ROW_H + FOOT_H // 2, "⚾ Vision 360 · MLB Sabermetrics", fs, (160, 165, 175))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -346,7 +377,7 @@ def build_sprint_row(p1_data: dict, p2_data: dict, name1: str, name2: str) -> pd
     for key, label in [("sprint_speed", "Sprint Speed (ft/s)"), ("hp_to_1b", "HP→1B (seg)")]:
         rows.append({
             "Métrica": label,
-            name1: s1.get(key, "N/D"),
-            name2: s2.get(key, "N/D"),
+            name1: _fmt("V_EV" if key == "sprint_speed" else "sprint", s1.get(key, "N/D")),
+            name2: _fmt("V_EV" if key == "sprint_speed" else "sprint", s2.get(key, "N/D")),
         })
     return pd.DataFrame(rows)
