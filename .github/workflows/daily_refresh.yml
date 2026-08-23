@@ -2,8 +2,9 @@ name: Sincronización Diaria de Datos MLB
 
 on:
   schedule:
-    # Corre todos los días a las 12:00 AM AST (04:00 UTC)
-    - cron: '0 4 * * *'
+    # Corre todos los días a las 4:00 AM AST / República Dominicana (08:00 UTC)
+    # Permite asegurar que todos los juegos de la costa oeste hayan finalizado y cerrado boxscores
+    - cron: '0 8 * * *'
   workflow_dispatch: # Permite ejecución manual desde la pestaña Actions en GitHub
 
 permissions:
