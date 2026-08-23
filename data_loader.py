@@ -115,6 +115,36 @@ _KNOWN_REPLACEMENTS = {
 }
 
 
+_DISPLAY_HEALING = {
+    r'\xc3\xb1': 'ñ', r'\xc3\xa1': 'á', r'\xc3\xa9': 'é', r'\xc3\xad': 'í', r'\xc3\xb3': 'ó', r'\xc3\xba': 'ú',
+    r'\xc3\x91': 'Ñ', r'\xc3\x81': 'Á', r'\xc3\x89': 'É', r'\xc3\x8d': 'Í', r'\xc3\x93': 'Ó', r'\xc3\x9a': 'Ú',
+    'Ã±': 'ñ', 'Ã¡': 'á', 'Ã©': 'é', 'Ã­': 'í', 'Ã³': 'ó', 'Ãº': 'ú',
+    'Ã‘': 'Ñ', 'Ã\x81': 'Á', 'Ã\x89': 'É', 'Ã\x8d': 'Í', 'Ã\x93': 'Ó', 'Ã\x9a': 'Ú',
+    f'Acu{_REP}a': 'Acuña', f'Iv{_REP}n': 'Iván', f'S{_REP}nchez': 'Sánchez', f'Jes{_REP}s': 'Jesús',
+    f'Hern{_REP}ndez': 'Hernández', f'Andr{_REP}s': 'Andrés', f'Gim{_REP}nez': 'Giménez',
+    f'Jos{_REP}': 'José', f'D{_REP}az': 'Díaz', f'Mu{_REP}oz': 'Muñoz', f'Pe{_REP}a': 'Peña',
+    f'Su{_REP}rez': 'Suárez', f'Berr{_REP}os': 'Berríos', f'B{_REP}ez': 'Báez', f'Arr{_REP}ez': 'Arráez',
+    f'L{_REP}pez': 'López', f'P{_REP}rez': 'Pérez', f'Garc{_REP}a': 'García', f'V{_REP}squez': 'Vásquez',
+    f'Vel{_REP}zquez': 'Velázquez', f'Dom{_REP}nguez': 'Domínguez', f'M{_REP}ndez': 'Méndez',
+    f'Jim{_REP}nez': 'Jiménez', f'N{_REP}ez': 'Núñez', f'Ram{_REP}rez': 'Ramírez', f'Alc{_REP}ntara': 'Alcántara'
+}
+
+
+def clean_display_name(name: str) -> str:
+    """Limpia secuencias corruptas de escape y mojibake para visualización en UI."""
+    if not isinstance(name, str) or not name.strip():
+        return ""
+    text = name.strip()
+    for k, v in _DISPLAY_HEALING.items():
+        text = text.replace(k, v)
+    if r"\x" in text:
+        try:
+            text = text.encode("utf-8").decode("unicode_escape").encode("latin-1").decode("utf-8")
+        except Exception:
+            pass
+    return text
+
+
 def clean_text_encoding(text: str) -> str:
     """Repara secuencias corruptas de mojibake."""
     if not isinstance(text, str):
@@ -145,7 +175,11 @@ def _load_csv(name: str) -> pd.DataFrame | None:
     path = DATA_DIR / f"{name}.csv"
     if path.exists():
         try:
-            return pd.read_csv(path)
+            df = pd.read_csv(path)
+            for col in ["Name", "last_name, first_name", "player_name"]:
+                if col in df.columns:
+                    df[col] = df[col].apply(clean_display_name)
+            return df
         except Exception as e:
             logger.error("Error leyendo %s.csv: %s", name, e)
     return None

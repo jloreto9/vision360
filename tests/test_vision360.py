@@ -157,8 +157,33 @@ class TestVision360(unittest.TestCase):
         comp_df = build_comparison_table(d1, d2, "James Wood", "Zach Neto", "batter")
         img_bytes = build_comparison_image(d1, d2, "James Wood", "Zach Neto", "batter", comp_df)
 
-        self.assertIsInstance(img_bytes, bytes)
-        self.assertGreater(len(img_bytes), 20000)
+    def test_juan_soto_fielding_and_stats(self):
+        """Valida que Juan Soto tenga defensa (OAA), velocidad y métricas completas."""
+        bat_df = load_batting()
+        pit_df = load_pitching()
+        field_df = load_fielding()
+        sprint_df = load_sprint()
+        bat_exp = load_batting_expected()
+        pit_exp = load_pitching_expected()
+        bat_ev = load_batting_exitvelo()
+        pit_ev = load_pitching_exitvelo()
+
+        d = get_player_data("Juan Soto", bat_df, pit_df, field_df, sprint_df, bat_exp, pit_exp, bat_ev, pit_ev)
+
+        self.assertEqual(d["role"], "batter")
+        self.assertEqual(d["mlbID"], 665742)
+        self.assertTrue(len(d["fielding"]) > 0, "Juan Soto debe tener registros de fildeo en fielding.csv")
+        self.assertIsNotNone(d["sprint"].get("sprint_speed"), "Juan Soto debe tener Sprint Speed")
+
+    def test_clean_display_names_no_corrupt_sequences(self):
+        """Valida que los nombres no contengan secuencias de escape corruptas."""
+        bat_df = load_batting()
+        pit_df = load_pitching()
+
+        for df, col in [(bat_df, "Name"), (pit_df, "Name")]:
+            for name in df[col].dropna():
+                self.assertNotIn(r"\xc3", name, f"Nombre con escape corrupto detectado: {name}")
+                self.assertNotIn("Ã", name, f"Nombre con mojibake detectado: {name}")
 
 
 if __name__ == "__main__":

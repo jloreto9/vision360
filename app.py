@@ -320,22 +320,41 @@ with tab_speed:
             import plotly.graph_objects as go
             fig_speed = go.Figure()
             fig_speed.add_trace(go.Bar(
-                x=[p1, p2], y=[s1_f, s2_f],
-                marker_color=["#E63946", "#457B9D"],
-                text=[f"{s1_f:.1f} ft/s", f"{s2_f:.1f} ft/s"],
-                textposition="outside"
+                y=[f"🔵 {p2}", f"🔴 {p1}"],
+                x=[s2_f, s1_f],
+                orientation="h",
+                marker=dict(
+                    color=["#457B9D", "#E63946"],
+                    line=dict(color="rgba(255, 255, 255, 0.2)", width=1)
+                ),
+                text=[f" {s2_f:.1f} ft/s", f" {s1_f:.1f} ft/s"],
+                textposition="outside",
+                cliponaxis=False,
             ))
+            # Líneas de referencia sabermétrica
+            fig_speed.add_vline(x=27.0, line_dash="dash", line_color="rgba(255, 255, 255, 0.4)", annotation_text="Promedio MLB (27.0)", annotation_position="top left", annotation_font_color="#CBD5E1")
+            fig_speed.add_vline(x=30.0, line_dash="dash", line_color="#FDB827", annotation_text="Élite (30.0+)", annotation_position="top right", annotation_font_color="#FDB827")
+
             fig_speed.update_layout(
-                title="Sprint Speed (ft/s) — Statcast",
-                yaxis=dict(range=[24, 32], gridcolor="rgba(255,255,255,0.1)"),
-                xaxis=dict(tickfont=dict(color="#FFFFFF")),
-                height=350,
+                title=dict(text="💨 Comparativa de Velocidad de Sprint (Statcast ft/s)", font=dict(size=16, color="#FFFFFF")),
+                xaxis=dict(
+                    range=[22, 32],
+                    dtick=2,
+                    gridcolor="rgba(255, 255, 255, 0.12)",
+                    title=dict(text="Velocidad (Pies por segundo / ft/s)", font=dict(color="#94A3B8")),
+                    tickfont=dict(color="#E2E8F0"),
+                ),
+                yaxis=dict(
+                    tickfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+                    autorange="reversed"  # Muestra P1 arriba y P2 abajo
+                ),
+                height=260,
                 paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15, 23, 42, 0.3)",
                 font=dict(color="#FFFFFF"),
+                margin=dict(l=30, r=50, t=50, b=30),
             )
             st.plotly_chart(fig_speed, use_container_width=True)
-            st.caption("Promedio MLB ≈ 27.0 ft/s · Nivel Élite: 30+ ft/s")
         except (ValueError, TypeError):
             st.caption("Datos de Sprint Speed no numéricos.")
 

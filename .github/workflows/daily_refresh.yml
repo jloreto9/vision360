@@ -1,0 +1,45 @@
+name: Sincronización Diaria de Datos MLB
+
+on:
+  schedule:
+    # Corre todos los días a las 12:00 AM AST (04:00 UTC)
+    - cron: '0 4 * * *'
+  workflow_dispatch: # Permite ejecución manual desde la pestaña Actions en GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar ingesta y actualización de datos Statcast
+        run: |
+          python refresh_data.py
+
+      - name: Ejecutar suite de pruebas de integridad
+        run: |
+          python tests/test_vision360.py
+
+      - name: Guardar y commitear datasets actualizados
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: actualización diaria automatizada de datasets Statcast [skip ci]"
+          file_pattern: "data/*.csv"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
