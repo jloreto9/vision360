@@ -119,13 +119,13 @@ if st.sidebar.button("🔄 Recargar Datos (Limpiar Caché)", use_container_width
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     "👨‍💻 **Desarrollado por Jorge Leonardo Loreto**  \n"
-    "*Data Scientist & Baseball Analytics*  \n"
+    "*AI Data Scientist & Baseball Analytics*  \n"
     "[GitHub](https://github.com/jloreto9) · [Portafolio](https://jloreto9.github.io)"
 )
 
 # ── Header ───────────────────────────────────────────────────────────────────
 st.title("⚾ Vision 360 — MLB Player Comparison")
-st.caption(f"Comparación head-to-head integral · Temporada MLB {SEASON} · Desarrollado por **Jorge Leonardo Loreto**")
+st.caption(f"Comparación head-to-head integral · Temporada MLB {SEASON} · Desarrollado por **Jorge Leonardo Loreto** (AI Data Scientist)")
 
 # ── Selección de jugadores ───────────────────────────────────────────────────
 col1, col_vs, col2 = st.columns([5, 1, 5])
@@ -396,7 +396,7 @@ with tab_speed:
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #64748B; font-size: 0.85rem;'>"
-    "⚾ <b>Vision 360</b> · Desarrollado por <b>Jorge Leonardo Loreto</b> · Economista & Data Scientist · MLB Sabermetrics"
+    "⚾ <b>Vision 360</b> · Desarrollado por <b>Jorge Leonardo Loreto</b> · Economista & AI Data Scientist · MLB Sabermetrics"
     "</div>",
     unsafe_allow_html=True
 )

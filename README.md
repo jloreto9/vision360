@@ -7,7 +7,7 @@
 
 **Vision 360** es una plataforma analítica interactiva desarrollada en **Streamlit** para la comparación *head-to-head* (frente a frente) de jugadores de las Grandes Ligas (MLB), cubriendo todas las dimensiones del juego con una visión integral de 360 grados: bateo, pitcheo, calidad de contacto Statcast, métricas esperadas, velocidad de sprint y fildeo defensivo.
 
-Desarrollada por **Jorge Leonardo Loreto** (*Data Scientist & Baseball Analytics*).
+Desarrollada por **Jorge Leonardo Loreto** (*AI Data Scientist & Baseball Analytics*).
 
 ---
 
@@ -105,7 +105,7 @@ python refresh_data.py
 ## 👨‍💻 Autor
 
 **Jorge Leonardo Loreto**  
-*Economista & Data Scientist — Especialista en Sabermetría y Modelado Analítico*
+*Economista & AI Data Scientist — Especialista en Sabermetría y Modelado Analítico*
 
 - **GitHub:** [@jloreto9](https://github.com/jloreto9)
 - **Portafolio:** [jloreto9.github.io](https://jloreto9.github.io)
