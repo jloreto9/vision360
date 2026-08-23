@@ -352,41 +352,90 @@ with tab_speed:
         try:
             s1_f, s2_f = float(s1), float(s2)
             import plotly.graph_objects as go
+            
+            t1_s = d1.get("team_short") or d1.get("team_abbr") or ""
+            t2_s = d2.get("team_short") or d2.get("team_abbr") or ""
+            lbl1 = f"🔴 {p1} ({t1_s})" if t1_s else f"🔴 {p1}"
+            lbl2 = f"🔵 {p2} ({t2_s})" if t2_s else f"🔵 {p2}"
+
             fig_speed = go.Figure()
+            
             fig_speed.add_trace(go.Bar(
-                y=[f"🔵 {p2}", f"🔴 {p1}"],
-                x=[s2_f, s1_f],
+                name=lbl1,
+                y=[f"🔴 {p1}"],
+                x=[s1_f],
                 orientation="h",
                 marker=dict(
-                    color=["#457B9D", "#E63946"],
-                    line=dict(color="rgba(255, 255, 255, 0.2)", width=1)
+                    color="#FF3B56",
+                    line=dict(color="#FFFFFF", width=1.5)
                 ),
-                text=[f" {s2_f:.1f} ft/s", f" {s1_f:.1f} ft/s"],
+                text=[f" <b>{s1_f:.1f} ft/s</b>"],
                 textposition="outside",
+                textfont=dict(color="#FFFFFF", size=13),
                 cliponaxis=False,
             ))
+
+            fig_speed.add_trace(go.Bar(
+                name=lbl2,
+                y=[f"🔵 {p2}"],
+                x=[s2_f],
+                orientation="h",
+                marker=dict(
+                    color="#38BDF8",
+                    line=dict(color="#FFFFFF", width=1.5)
+                ),
+                text=[f" <b>{s2_f:.1f} ft/s</b>"],
+                textposition="outside",
+                textfont=dict(color="#FFFFFF", size=13),
+                cliponaxis=False,
+            ))
+
             # Líneas de referencia sabermétrica
-            fig_speed.add_vline(x=27.0, line_dash="dash", line_color="rgba(255, 255, 255, 0.4)", annotation_text="Promedio MLB (27.0)", annotation_position="top left", annotation_font_color="#CBD5E1")
-            fig_speed.add_vline(x=30.0, line_dash="dash", line_color="#FDB827", annotation_text="Élite (30.0+)", annotation_position="top right", annotation_font_color="#FDB827")
+            fig_speed.add_vline(
+                x=27.0, line_dash="dash", line_color="#94A3B8", line_width=1.5,
+                annotation_text="Promedio MLB (27.0)", annotation_position="top left",
+                annotation_font=dict(color="#CBD5E1", size=11)
+            )
+            fig_speed.add_vline(
+                x=30.0, line_dash="dash", line_color="#FDB827", line_width=1.5,
+                annotation_text="Élite (30.0+)", annotation_position="top right",
+                annotation_font=dict(color="#FDB827", size=11)
+            )
 
             fig_speed.update_layout(
-                title=dict(text="💨 Comparativa de Velocidad de Sprint (Statcast ft/s)", font=dict(size=16, color="#FFFFFF")),
+                title=dict(
+                    text="💨 <b>Comparativa de Velocidad de Sprint (Statcast ft/s)</b>",
+                    font=dict(size=16, color="#FFFFFF")
+                ),
                 xaxis=dict(
-                    range=[22, 32],
+                    range=[22, 33],
                     dtick=2,
                     gridcolor="rgba(255, 255, 255, 0.12)",
                     title=dict(text="Velocidad (Pies por segundo / ft/s)", font=dict(color="#94A3B8")),
-                    tickfont=dict(color="#E2E8F0"),
+                    tickfont=dict(color="#E2E8F0", size=12),
                 ),
                 yaxis=dict(
                     tickfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
-                    autorange="reversed"  # Muestra P1 arriba y P2 abajo
+                    autorange="reversed",
+                    showgrid=False
                 ),
-                height=260,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15, 23, 42, 0.3)",
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.05,
+                    xanchor="right",
+                    x=1.0,
+                    font=dict(color="#FFFFFF", size=12),
+                    bgcolor="rgba(14, 23, 46, 0.90)",
+                    bordercolor="rgba(255, 255, 255, 0.20)",
+                    borderwidth=1,
+                ),
+                height=280,
+                paper_bgcolor="#070C1A",
+                plot_bgcolor="#0E172E",
                 font=dict(color="#FFFFFF"),
-                margin=dict(l=30, r=50, t=50, b=30),
+                margin=dict(l=20, r=60, t=65, b=30),
             )
             st.plotly_chart(fig_speed, use_container_width=True)
         except (ValueError, TypeError):

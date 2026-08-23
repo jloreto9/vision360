@@ -179,6 +179,11 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     d1 = p1_data.get(data_key, {})
     d2 = p2_data.get(data_key, {})
 
+    t1 = p1_data.get("team_short") or p1_data.get("team_abbr") or ""
+    t2 = p2_data.get("team_short") or p2_data.get("team_abbr") or ""
+    lbl1 = f"🔴 {name1} ({t1})" if t1 else f"🔴 {name1}"
+    lbl2 = f"🔵 {name2} ({t2})" if t2 else f"🔵 {name2}"
+
     labels = [cfg["label"] for cfg in metrics.values()]
     vals1, vals2 = [], []
 
@@ -192,32 +197,35 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
     vals1  += [vals1[0]]
     vals2  += [vals2[0]]
 
-    RED  = "#E63946"
-    BLUE = "#457B9D"
+    RED  = "#FF3B56"
+    BLUE = "#38BDF8"
     fig = go.Figure()
-    for vals, name, color in [(vals1, name1, RED), (vals2, name2, BLUE)]:
+    
+    for vals, name_lbl, color in [(vals1, lbl1, RED), (vals2, lbl2, BLUE)]:
         fig.add_trace(go.Scatterpolar(
             r=vals,
             theta=labels,
             fill="toself",
-            name=name,
-            line=dict(color=color, width=2.5),
+            name=name_lbl,
+            line=dict(color=color, width=3),
             fillcolor=_hex_to_rgba(color, 0.28),
+            marker=dict(size=6, color=color),
         ))
 
     fig.update_layout(
         polar=dict(
-            bgcolor="rgba(15, 23, 42, 0.4)",
+            bgcolor="#0E172E",
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
                 tickvals=[25, 50, 75, 100],
-                tickfont=dict(color="rgba(226, 232, 240, 0.8)", size=10),
-                gridcolor="rgba(255, 255, 255, 0.15)",
+                ticktext=["25", "50", "75", "100"],
+                tickfont=dict(color="#94A3B8", size=11),
+                gridcolor="rgba(255, 255, 255, 0.12)",
                 linecolor="rgba(255, 255, 255, 0.20)",
             ),
             angularaxis=dict(
-                tickfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+                tickfont=dict(color="#F8FAFC", size=13, family="sans-serif"),
                 gridcolor="rgba(255, 255, 255, 0.15)",
                 linecolor="rgba(255, 255, 255, 0.25)",
             ),
@@ -226,18 +234,18 @@ def build_radar(p1_data: dict, p2_data: dict, name1: str, name2: str, role: str)
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.16,
+            y=1.06,
             xanchor="center",
             x=0.5,
-            font=dict(color="#FFFFFF", size=14),
-            bgcolor="rgba(15, 23, 42, 0.85)",
-            bordercolor="rgba(255, 255, 255, 0.20)",
+            font=dict(color="#FFFFFF", size=13, family="sans-serif"),
+            bgcolor="rgba(14, 23, 46, 0.95)",
+            bordercolor="rgba(255, 255, 255, 0.25)",
             borderwidth=1,
         ),
         height=540,
-        paper_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#070C1A",
         font=dict(color="#FFFFFF"),
-        margin=dict(t=25, b=85, l=45, r=45),
+        margin=dict(t=55, b=25, l=45, r=45),
     )
     return fig
 
