@@ -109,6 +109,12 @@ if not filtered_players:
     st.sidebar.warning("No hay jugadores que coincidan con los filtros seleccionados.")
     filtered_players = all_players
 
+# Acciones de datos en Sidebar
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Recargar Datos (Limpiar Caché)", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
+
 # Autoría en Sidebar
 st.sidebar.markdown("---")
 st.sidebar.markdown(

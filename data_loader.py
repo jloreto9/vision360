@@ -342,7 +342,7 @@ def _build_pitching(brp: pd.DataFrame, scp: pd.DataFrame, exp_df: pd.DataFrame =
 
 # ── Funciones cacheadas de Streamlit ────────────────────────────────────────
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_batting():
     csv = _load_csv("batting")
     if csv is not None:
@@ -352,7 +352,7 @@ def load_batting():
     return _build_batting(br, sc)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_pitching():
     csv = _load_csv("pitching")
     if csv is not None:
@@ -362,7 +362,7 @@ def load_pitching():
     return _build_pitching(brp, scp)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_batting_expected():
     csv = _load_csv("batting_expected")
     if csv is not None:
@@ -374,7 +374,7 @@ def load_batting_expected():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_pitching_expected():
     csv = _load_csv("pitching_expected")
     if csv is not None:
@@ -386,7 +386,7 @@ def load_pitching_expected():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_batting_exitvelo():
     csv = _load_csv("batting_exitvelo")
     if csv is not None:
@@ -398,7 +398,7 @@ def load_batting_exitvelo():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_pitching_exitvelo():
     csv = _load_csv("pitching_exitvelo")
     if csv is not None:
@@ -410,7 +410,7 @@ def load_pitching_exitvelo():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_fielding():
     csv = _load_csv("fielding")
     if csv is not None:
@@ -424,7 +424,7 @@ def load_fielding():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_sprint():
     df = _load_csv("sprint")
     if df is not None:
