@@ -1,9 +1,12 @@
 # ⚾ Vision 360 — MLB Player Comparison App
 
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B.svg?style=flat&logo=streamlit)](https://streamlit.io/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://vision360-tdzfctdme7zf3fhihe4wck.streamlit.app/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B.svg?style=flat&logo=streamlit)](https://vision360-tdzfctdme7zf3fhihe4wck.streamlit.app/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python)](https://python.org)
 [![Plotly](https://img.shields.io/badge/Plotly-5.20+-3F4F75.svg?style=flat&logo=plotly)](https://plotly.com/)
 [![MLB Statcast](https://img.shields.io/badge/Data-MLB_Statcast_%26_FanGraphs-002D72.svg?style=flat)](https://baseballsavant.mlb.com/)
+
+🔗 **App en vivo:** [vision360-tdzfctdme7zf3fhihe4wck.streamlit.app](https://vision360-tdzfctdme7zf3fhihe4wck.streamlit.app/)
 
 **Vision 360** es una plataforma analítica interactiva desarrollada en **Streamlit** para la comparación *head-to-head* (frente a frente) de jugadores de las Grandes Ligas (MLB), cubriendo todas las dimensiones del juego con una visión integral de 360 grados: bateo, pitcheo, calidad de contacto Statcast, métricas esperadas, velocidad de sprint y fildeo defensivo.
 
