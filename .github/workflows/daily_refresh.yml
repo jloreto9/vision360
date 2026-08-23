@@ -44,5 +44,6 @@ jobs:
             echo "No hay cambios nuevos en los datasets."
           else
             git commit -m "data: actualización diaria automatizada de datasets Statcast [skip ci]"
+            git pull --rebase origin main
             git push origin main
           fi
