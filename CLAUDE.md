@@ -90,11 +90,25 @@ vision360/
 
 ---
 
+## Política y Convención Obligatoria de Testing
+
+> **Regla de Trabajo Innegociable:** Antes de cada commit, deploy o entrega de tarea, se debe ejecutar la suite de pruebas unitarias y de integración para garantizar cero regresiones en cruce de nombres, resolución de headshots, generación de radar y cálculo de métricas.
+
+```bash
+# Ejecutar suite de pruebas completa
+python tests/test_vision360.py
+```
+
+---
+
 ## Comandos útiles
 
 ```bash
 # Correr la app localmente
 streamlit run app.py
+
+# Ejecutar suite de pruebas obligatoria
+python tests/test_vision360.py
 
 # Actualizar y pre-cargar todos los CSVs en data/
 python refresh_data.py

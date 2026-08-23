@@ -69,17 +69,74 @@ _PIT_EV_RENAME = [
 ]
 
 
-# ── Normalización avanzada de nombres (ordenación canónica de tokens) ─────
+# ── Normalización avanzada de nombres (ordenación canónica de tokens y cura de mojibake) ─
+
+_REP = chr(0xFFFD)
+
+_MOJIBAKE_MAP = {
+    'Ã±': 'n', 'Ã¡': 'a', 'Ã©': 'e', 'Ã­': 'i', 'Ã³': 'o', 'Ãº': 'u',
+    'Ã‘': 'n', 'Ã\x81': 'a', 'Ã\x89': 'e', 'Ã\x8d': 'i', 'Ã\x93': 'o', 'Ã\x9a': 'u',
+    '\\xc3\\xb1': 'n', '\\xc3\\xa1': 'a', '\\xc3\\xa9': 'e', '\\xc3\\xad': 'i', '\\xc3\\xb3': 'o', '\\xc3\\xba': 'u',
+}
+
+_KNOWN_REPLACEMENTS = {
+    'acua': 'acuna', f'acu{_REP}a': 'acuna', f'acun{_REP}a': 'acuna',
+    'snchez': 'sanchez', f's{_REP}nchez': 'sanchez',
+    'jess': 'jesus', f'jes{_REP}s': 'jesus',
+    'ivn': 'ivan', f'iv{_REP}n': 'ivan',
+    'andr': 'andres', 'andrs': 'andres', f'andr{_REP}s': 'andres',
+    'lourds': 'lourdes',
+    'yordn': 'yordan',
+    'martnez': 'martinez', f'mart{_REP}nez': 'martinez',
+    'rodrguez': 'rodriguez', f'rodr{_REP}guez': 'rodriguez',
+    'daz': 'diaz', f'd{_REP}az': 'diaz',
+    'gimnez': 'gimenez', f'gim{_REP}nez': 'gimenez',
+    'muoz': 'munoz', f'mu{_REP}oz': 'munoz',
+    'pea': 'pena', f'pe{_REP}a': 'pena',
+    'surez': 'suarez', f'su{_REP}rez': 'suarez',
+    'berros': 'berrios', f'berr{_REP}os': 'berrios',
+    'bez': 'baez', f'b{_REP}ez': 'baez',
+    'arrz': 'arraez', f'arr{_REP}ez': 'arraez',
+    'jos': 'jose', f'jos{_REP}': 'jose',
+    'hernndez': 'hernandez', f'hern{_REP}ndez': 'hernandez',
+    'fernndez': 'fernandez', f'fern{_REP}ndez': 'fernandez',
+    'gonzlez': 'gonzalez', f'gonz{_REP}lez': 'gonzalez',
+    'lpez': 'lopez', f'l{_REP}pez': 'lopez',
+    'prez': 'perez', f'p{_REP}rez': 'perez',
+    'garca': 'garcia', f'garc{_REP}a': 'garcia',
+    'vsquez': 'vasquez', f'v{_REP}squez': 'vasquez',
+    'velzquez': 'velazquez', f'vel{_REP}zquez': 'velazquez',
+    'domnguez': 'dominguez', f'dom{_REP}nguez': 'dominguez',
+    'mndez': 'mendez', f'm{_REP}ndez': 'mendez',
+    'jimnez': 'jimenez', f'jim{_REP}nez': 'jimenez',
+    'nez': 'nunez', f'n{_REP}ez': 'nunez',
+    'ramrez': 'ramirez', f'ram{_REP}rez': 'ramirez',
+    'alcntara': 'alcantara', f'alc{_REP}ntara': 'alcantara',
+}
+
+
+def clean_text_encoding(text: str) -> str:
+    """Repara secuencias corruptas de mojibake."""
+    if not isinstance(text, str):
+        return ""
+    for k, v in _MOJIBAKE_MAP.items():
+        text = text.replace(k, v)
+    return text
+
 
 def normalize_name_key(name: str) -> str:
-    """Normaliza un nombre eliminando acentos, sufijos (Jr, II, etc.) y ordenando tokens."""
+    """Normaliza un nombre eliminando acentos, sufijos, eñes, mojibake y ordenando tokens alfabéticamente."""
     if not isinstance(name, str) or not name.strip():
         return ""
-    text = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("utf-8").lower()
-    text = text.replace(".", "").replace(",", " ").strip()
+    text = clean_text_encoding(name)
+    text = text.replace('ñ', 'n').replace('Ñ', 'n')
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("utf-8").lower()
+    text = text.replace(".", " ").replace(",", " ").replace("-", " ").strip()
+    
     suffixes = {"jr", "sr", "ii", "iii", "iv", "v"}
     tokens = [t for t in text.split() if t and t not in suffixes]
-    return " ".join(sorted(tokens))
+    fixed_tokens = [_KNOWN_REPLACEMENTS.get(t, t) for t in tokens]
+    return " ".join(sorted(fixed_tokens))
 
 
 # ── Helpers de carga ────────────────────────────────────────────────────────
